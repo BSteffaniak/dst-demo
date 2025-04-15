@@ -42,6 +42,7 @@ impl TcpListener {
     /// # Panics
     ///
     /// * If all TCP backend features are disabled
+    #[allow(clippy::unused_async)]
     pub async fn bind(addr: impl Into<String>) -> Result<Self, Error> {
         let addr = addr.into();
 

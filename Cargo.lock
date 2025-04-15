@@ -235,7 +235,6 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bytes",
- "dst_demo_http_models",
  "dst_demo_simulator_utils",
  "futures-core",
  "futures-util",
@@ -245,15 +244,6 @@ dependencies = [
  "serde_json",
  "strum",
  "thiserror",
-]
-
-[[package]]
-name = "dst_demo_http_models"
-version = "0.1.0"
-dependencies = [
- "reqwest",
- "serde",
- "strum",
 ]
 
 [[package]]

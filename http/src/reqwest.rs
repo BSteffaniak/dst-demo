@@ -4,8 +4,25 @@ use async_trait::async_trait;
 use bytes::Bytes;
 
 use crate::{
-    Error, GenericClient, GenericRequestBuilder, GenericResponse, Method, RequestBuilder, Response, StatusCode,
+    Error, GenericClient, GenericRequestBuilder, GenericResponse, Method, RequestBuilder, Response,
+    StatusCode,
 };
+
+impl From<crate::Method> for reqwest::Method {
+    fn from(value: crate::Method) -> Self {
+        match value {
+            crate::Method::Get => Self::GET,
+            crate::Method::Post => Self::POST,
+            crate::Method::Put => Self::PUT,
+            crate::Method::Patch => Self::PATCH,
+            crate::Method::Delete => Self::DELETE,
+            crate::Method::Head => Self::HEAD,
+            crate::Method::Options => Self::OPTIONS,
+            crate::Method::Connect => Self::CONNECT,
+            crate::Method::Trace => Self::TRACE,
+        }
+    }
+}
 
 pub struct ReqwestClient(reqwest::Client);
 

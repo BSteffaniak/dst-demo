@@ -1,0 +1,32 @@
+[package]
+authors     = ["Braden Steffaniak"]
+categories  = ["development-tools::testing", "network-programming"]
+description = "TCP Client debugging package"
+edition     = "2024"
+keywords    = ["client", "example"]
+license     = "MIT"
+name        = "dst_demo_tcp_client"
+readme      = "README.md"
+repository  = "https://github.com/BSteffaniak/dst-demo"
+version     = "0.1.0"
+
+[dependencies]
+clap = { workspace = true }
+ctrlc = { workspace = true }
+log = { workspace = true }
+pretty_env_logger = { workspace = true }
+rustyline = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+    "io-std",
+    "io-util",
+    "macros",
+    "net",
+    "rt-multi-thread",
+] }
+tokio-util = { workspace = true, features = ["codec"] }
+
+[features]
+default = []
+
+fail-on-warnings = []

@@ -1,0 +1,25 @@
+[package]
+authors     = ["Braden Steffaniak"]
+categories  = ["development-utils"]
+description = "RNG package"
+edition     = "2024"
+keywords    = ["generator", "number", "random"]
+license     = "MIT"
+name        = "dst_demo_random"
+readme      = "README.md"
+repository  = "https://github.com/BSteffaniak/dst-demo"
+version     = "0.1.0"
+
+[dependencies]
+dst_demo_simulator_utils = { version = "0.1.0", path = "../utils", optional = true, default-features = false }
+
+log  = { workspace = true }
+rand = { version = "=0.8.5", features = ["small_rng"] }
+
+[features]
+default = ["rand", "simulator"]
+
+fail-on-warnings = []
+
+rand      = []
+simulator = ["dep:dst_demo_simulator_utils"]

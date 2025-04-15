@@ -1,14 +1,5 @@
 [workspace]
-members = [
-    "harness",
-    "http",
-    "http/examples/simple_get",
-    "random",
-    "simulator",
-    "tcp",
-    "tcp_client",
-    "utils",
-]
+members = ["harness", "random", "simulator", "tcp", "tcp_client", "utils"]
 
 resolver = "2"
 

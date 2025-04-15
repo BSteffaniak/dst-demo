@@ -1,0 +1,271 @@
+name: Build and Test
+
+on:
+    push:
+        branches: ["master"]
+    pull_request:
+        branches: ["master"]
+    workflow_dispatch:
+
+env:
+    CARGO_TERM_COLOR: always
+
+jobs:
+    cargo-deny:
+        continue-on-error: true
+        runs-on: ubuntu-latest
+
+        strategy:
+            matrix:
+                checks:
+                    - bans
+                    - sources
+                    - licenses
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - name: cargo-deny check ${{ matrix.checks }}
+              uses: EmbarkStudios/cargo-deny-action@v2
+              with:
+                  command: check ${{ matrix.checks }}
+                  arguments: --all-features
+
+    build-matrix:
+        name: Build matrix
+
+        strategy:
+            fail-fast: true
+
+            matrix:
+                os: ["macos-latest", "ubuntu-latest", "windows-latest"]
+
+        runs-on: ${{ matrix.os }}
+
+        outputs:
+            matrix: ${{ steps.build-matrix-step.outputs.matrix }}
+
+        steps:
+            - uses: dtolnay/rust-toolchain@stable
+
+            - name: Checkout
+              if: ${{ matrix.os == 'ubuntu-latest' }}
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Build matrix JSON
+              if: ${{ matrix.os == 'ubuntu-latest' }}
+              id: build-matrix-step
+              run: |
+                  cargo install --git https://github.com/MoosicBox/MoosicBox clippier
+                  MATRIX=$(
+                      clippier \
+                          features \
+                          . \
+                          --chunked 5 \
+                          --max-parallel 256 \
+                          -o json \
+                          --spread \
+                          | jq -rc \
+                              '[
+                                  .[]
+                                  | {
+                                      "name": (.name | sub("^dst_demo_"; "")),
+                                      "path": (.path),
+                                      "features": (.features),
+                                      "requiredFeatures": (if .requiredFeatures != null then .requiredFeatures | join(",") else null end),
+                                      "os": (.os + "-latest"),
+                                      "dependencies": (.dependencies),
+                                      "toolchains": (.toolchains),
+                                      "ciSteps": (.ciSteps),
+                                      "ciToolchains": (.ciToolchains),
+                                      "env": (.env)
+                                  }
+                                  | del(.requiredFeatures | nulls)
+                                  | del(.dependencies | nulls)
+                                  | del(.toolchains | nulls)
+                                  | del(.ciSteps | nulls)
+                                  | del(.ciToolchains | nulls)
+                                  | del(.env | nulls)
+                              ]'
+                  )
+                  echo "Using matrix (raw):"
+                  echo $MATRIX
+                  echo "Using matrix:"
+                  echo $MATRIX | jq
+                  echo 'matrix<<EOF' >> $GITHUB_OUTPUT
+                  echo $MATRIX >> $GITHUB_OUTPUT
+                  echo 'EOF' >> $GITHUB_OUTPUT
+
+            - name: Install cargo-machete
+              shell: bash
+              run: |
+                  cargo install cargo-machete
+
+            - uses: actions/upload-artifact@master
+              if: ${{ matrix.os == 'macos-latest' }}
+              with:
+                  name: cargo-machete-macos
+                  path: ~/.cargo/bin/cargo-machete
+
+            - uses: actions/upload-artifact@master
+              if: ${{ matrix.os == 'ubuntu-latest' }}
+              with:
+                  name: cargo-machete-ubuntu
+                  path: ~/.cargo/bin/cargo-machete
+
+            - uses: actions/upload-artifact@master
+              if: ${{ matrix.os == 'windows-latest' }}
+              with:
+                  name: cargo-machete.exe
+                  path: ~/.cargo/bin/cargo-machete.exe
+
+    build:
+        runs-on: ${{ matrix.package.os }}
+
+        needs: build-matrix
+
+        strategy:
+            fail-fast: false
+
+            matrix:
+                package: ${{ fromJson(needs.build-matrix.outputs.matrix) }}
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - name: Install winget
+              if: ${{ matrix.package.os == 'windows-latest' && contains(matrix.package.dependencies, 'winget') }}
+              uses: BSteffaniak/install-winget@v1
+
+            - name: Setup CI
+              if: ${{ matrix.package.ciSteps }}
+              run: ${{ matrix.package.ciSteps }}
+
+            - uses: pnpm/action-setup@v3
+              if: ${{ contains(matrix.package.toolchains, 'pnpm') || contains(matrix.package.ciToolchains, 'pnpm') }}
+              name: Install pnpm
+              with:
+                  version: 9
+                  run_install: false
+
+            - uses: actions/setup-node@v4
+              if: ${{ contains(matrix.package.toolchains, 'node') || contains(matrix.package.ciToolchains, 'node') }}
+              name: Install node
+              with:
+                  node-version: 22
+
+            - name: Setup cmake
+              uses: jwlawson/actions-setup-cmake@v2
+              with:
+                  cmake-version: "3.x"
+
+            - name: Install dependencies
+              if: ${{ matrix.package.dependencies }}
+              shell: bash
+              run: ${{ matrix.package.dependencies }}
+
+            - name: Clippy ${{ matrix.package.name }}
+              shell: bash
+              run: |
+                  (cd ${{ matrix.package.path }}; \
+                      while read -r feature; do \
+                          command="${{ matrix.package.env }} cargo clippy ${{ runner.debug && '-vv ' }}--no-default-features --features="fail-on-warnings${{ matrix.package.requiredFeatures && format(',{0}', matrix.package.requiredFeatures) || '' }},$feature" ${{ matrix.package.cargo }}"
+                          # Trim whitespace
+                          command=$(echo "$command" | xargs)
+                          echo "RUNNING \`$command\`"
+                          if ${{ matrix.package.env }} cargo clippy \
+                              ${{ runner.debug && '-vv' }} \
+                              --no-default-features \
+                              --features="fail-on-warnings${{ matrix.package.requiredFeatures && format(',{0}', matrix.package.requiredFeatures) || '' }},$feature" ${{ matrix.package.cargo }}; then
+                              echo "SUCCESS \`$command\`";
+                          else
+                              >&2 echo "FAILED \`$command\`";
+                              >&2 echo "COMMAND: (cd ${{ matrix.package.path }}; $command)";
+                              return 1
+                          fi
+                      done <<<"$(echo '${{ toJson(matrix.package.features) }}' | jq -r '.[]')")
+
+            - name: Run ${{ matrix.package.name }} tests
+              shell: bash
+              run: |
+                  (cd ${{ matrix.package.path }}; \
+                      while read -r feature; do \
+                          command="${{ matrix.package.env }} cargo test --no-default-features --features="fail-on-warnings${{ matrix.package.requiredFeatures && format(',{0}', matrix.package.requiredFeatures) || '' }},$feature" ${{ matrix.package.cargo }}"
+                          # Trim whitespace
+                          command=$(echo "$command" | xargs)
+                          echo "RUNNING \`$command\`"
+                          if ${{ matrix.package.env }} cargo test \
+                              ${{ runner.debug && '-vv' }} \
+                              --no-default-features \
+                              --features="fail-on-warnings${{ matrix.package.requiredFeatures && format(',{0}', matrix.package.requiredFeatures) || '' }},$feature" ${{ matrix.package.cargo }}; then
+                              echo "SUCCESS \`$command\`";
+                          else
+                              >&2 echo "FAILED \`$command\`";
+                              >&2 echo "COMMAND: (cd ${{ matrix.package.path }}; $command)";
+                              return 1
+                          fi
+                      done <<<"$(echo '${{ toJson(matrix.package.features) }}' | jq -r '.[]')")
+
+            - name: Format ${{ matrix.package.name }}
+              shell: bash
+              run: |
+                  (cd ${{ matrix.package.path }}; ${{ matrix.package.env }} cargo ${{ runner.debug && '-vv' }} fmt --all -- --check)
+
+            - uses: actions/download-artifact@master
+              if: ${{ matrix.package.os == 'macos-latest' }}
+              with:
+                  name: cargo-machete-macos
+                  path: ~/.cargo/bin
+
+            - uses: actions/download-artifact@master
+              if: ${{ matrix.package.os == 'ubuntu-latest' }}
+              with:
+                  name: cargo-machete-ubuntu
+                  path: ~/.cargo/bin
+
+            - uses: actions/download-artifact@master
+              if: ${{ matrix.package.os == 'windows-latest' }}
+              with:
+                  name: cargo-machete.exe
+                  path: ~/.cargo/bin
+
+            - name: Make cargo-machete executable
+              if: ${{ matrix.package.os == 'macos-latest' }}
+              shell: bash
+              run: chmod +x ~/.cargo/bin/cargo-machete
+
+            - name: Make cargo-machete executable
+              if: ${{ matrix.package.os == 'ubuntu-latest' }}
+              shell: bash
+              run: chmod +x ~/.cargo/bin/cargo-machete
+
+            - name: Make cargo-machete executable
+              if: ${{ matrix.package.os == 'windows-latest' }}
+              shell: bash
+              run: chmod +x ~/.cargo/bin/cargo-machete.exe
+
+            - name: Validate ${{ matrix.package.name }} dependencies (machete)
+              if: ${{ matrix.package.os == 'macos-latest' }}
+              shell: bash
+              run: |
+                  ${{ matrix.package.env }} ~/.cargo/bin/cargo-machete --with-metadata ${{ matrix.package.path }}
+
+            - name: Validate ${{ matrix.package.name }} dependencies (machete)
+              if: ${{ matrix.package.os == 'ubuntu-latest' }}
+              shell: bash
+              run: |
+                  ${{ matrix.package.env }} ~/.cargo/bin/cargo-machete --with-metadata ${{ matrix.package.path }}
+
+            - name: Validate ${{ matrix.package.name }} dependencies (machete)
+              if: ${{ matrix.package.os == 'windows-latest' }}
+              shell: bash
+              run: |
+                  ${{ matrix.package.env }} ~/.cargo/bin/cargo-machete.exe --with-metadata ${{ matrix.package.path }}

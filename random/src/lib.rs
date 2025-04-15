@@ -8,61 +8,41 @@ pub mod rand;
 #[cfg(feature = "simulator")]
 pub mod simulator;
 
-#[cfg(feature = "simulator")]
-pub type Rng = RngWrapper<simulator::SimulatorRng>;
+#[allow(unused)]
+macro_rules! impl_rng {
+    ($type:ty $(,)?) => {
+        pub type Rng = RngWrapper<$type>;
 
-#[cfg(all(not(feature = "simulator"), feature = "rand"))]
-pub type Rng = RngWrapper<rand::RandRng>;
+        impl Default for Rng {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
 
-#[cfg(feature = "simulator")]
-impl Default for Rng {
-    fn default() -> Self {
-        Self::new()
-    }
+        impl Rng {
+            #[must_use]
+            pub fn new() -> Self {
+                Self::from_seed(None)
+            }
+
+            pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Self {
+                Self(<$type>::new(seed))
+            }
+
+            #[inline]
+            #[must_use]
+            pub fn next_u64(&self) -> u64 {
+                <Self as GenericRng>::next_u64(self)
+            }
+        }
+    };
 }
 
 #[cfg(feature = "simulator")]
-impl Rng {
-    #[must_use]
-    pub fn new() -> Self {
-        Self::from_seed(None)
-    }
-
-    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Self {
-        Self(simulator::SimulatorRng::new(seed))
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn next_u64(&self) -> u64 {
-        <Self as GenericRng>::next_u64(self)
-    }
-}
+impl_rng!(simulator::SimulatorRng);
 
 #[cfg(all(not(feature = "simulator"), feature = "rand"))]
-impl Rng {
-    #[must_use]
-    pub fn new() -> Self {
-        Self::from_seed(None)
-    }
-
-    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Self {
-        Self(rand::RandRng::new(seed))
-    }
-
-    #[inline]
-    #[must_use]
-    pub fn next_u64(&self) -> u64 {
-        <Self as GenericRng>::next_u64(self)
-    }
-}
-
-#[cfg(all(not(feature = "simulator"), feature = "rand"))]
-impl Default for Rng {
-    fn default() -> Self {
-        Self::new()
-    }
-}
+impl_rng!(rand::RandRng);
 
 pub trait GenericRng: Send + Sync {
     fn next_u64(&self) -> u64;

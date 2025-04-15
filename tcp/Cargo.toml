@@ -11,10 +11,9 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
-dst_demo_simulator_utils = { version = "0.1.0", path = "../utils", optional = true, default-features = false }
-
 async-trait = { workspace = true }
 log         = { workspace = true }
+paste       = { workspace = true }
 thiserror   = { workspace = true }
 tokio       = { workspace = true, features = ["net"] }
 turmoil     = { workspace = true, optional = true }
@@ -24,5 +23,5 @@ default = ["simulator", "tokio"]
 
 fail-on-warnings = []
 
-simulator = ["dep:dst_demo_simulator_utils", "dep:turmoil"]
+simulator = ["dep:turmoil"]
 tokio     = []

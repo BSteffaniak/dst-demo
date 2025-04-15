@@ -1,35 +1,47 @@
-use std::{net::SocketAddr, pin::pin};
+use std::{marker::PhantomData, net::SocketAddr, pin::pin};
 
 use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::{GenericTcpListener, GenericTcpStream, TcpStream};
+use crate::{Error, GenericTcpListener, GenericTcpStream};
 
-pub struct SimulatorTcpListener(turmoil::net::TcpListener);
+pub struct TcpListener(turmoil::net::TcpListener);
 
-impl SimulatorTcpListener {
+impl TcpListener {
     /// # Errors
     ///
-    /// * If the `turmoil::new::TcpListener` fails to bind the address
+    /// * If the `turmoil::net::TcpListener` fails to bind the address
     pub async fn bind(addr: &str) -> Result<Self, crate::Error> {
         Ok(Self(turmoil::net::TcpListener::bind(addr).await?))
     }
 }
 
-#[async_trait]
-impl GenericTcpListener for SimulatorTcpListener {
-    async fn accept(&self) -> Result<(TcpStream, SocketAddr), crate::Error> {
-        let (stream, addr) = self.0.accept().await?;
-        Ok((TcpStream(Box::new(SimulatorTcpStream(stream))), addr))
+impl crate::SimulatorTcpListener {
+    /// # Errors
+    ///
+    /// * If the `turmoil::net::TcpListener` fails to bind the address
+    pub async fn bind(addr: impl Into<String>) -> Result<Self, Error> {
+        Ok(Self(
+            TcpListener(turmoil::net::TcpListener::bind(addr.into()).await?),
+            PhantomData,
+        ))
     }
 }
 
-pub struct SimulatorTcpStream(turmoil::net::TcpStream);
+#[async_trait]
+impl GenericTcpListener<crate::SimulatorTcpStream> for TcpListener {
+    async fn accept(&self) -> Result<(crate::SimulatorTcpStream, SocketAddr), crate::Error> {
+        let (stream, addr) = self.0.accept().await?;
+        Ok((crate::TcpStreamWrapper(TcpStream(stream)), addr))
+    }
+}
+
+pub struct TcpStream(turmoil::net::TcpStream);
 
 #[async_trait]
-impl GenericTcpStream for SimulatorTcpStream {}
+impl GenericTcpStream for TcpStream {}
 
-impl AsyncRead for SimulatorTcpStream {
+impl AsyncRead for TcpStream {
     fn poll_read(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
@@ -42,7 +54,7 @@ impl AsyncRead for SimulatorTcpStream {
     }
 }
 
-impl AsyncWrite for SimulatorTcpStream {
+impl AsyncWrite for TcpStream {
     fn poll_write(
         self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,

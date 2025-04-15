@@ -16,7 +16,14 @@ use tokio_util::sync::CancellationToken;
 
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
     LazyLock::new(CancellationToken::new);
-static RNG: LazyLock<Rng> = LazyLock::new(Rng::default);
+
+#[cfg(feature = "simulator")]
+static RNG: LazyLock<Rng<dst_demo_random::simulator::SimulatorRng>> =
+    LazyLock::new(Rng::<dst_demo_random::simulator::SimulatorRng>::new);
+
+#[cfg(not(feature = "simulator"))]
+static RNG: LazyLock<Rng<dst_demo_random::rand::RandRng>> =
+    LazyLock::new(Rng::<dst_demo_random::rand::RandRng>::new);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

@@ -12,55 +12,34 @@ pub trait GenericRng: Send + Sync {
     fn next_u64(&self) -> u64;
 }
 
-pub struct Rng(Box<dyn GenericRng>);
+pub struct Rng<R: GenericRng>(R);
 
-impl GenericRng for Rng {
+impl<R: GenericRng> GenericRng for Rng<R> {
     fn next_u64(&self) -> u64 {
         self.0.next_u64()
     }
 }
 
-impl Default for Rng {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Rng {
+impl<R: GenericRng> Rng<R> {
     #[must_use]
-    pub fn new() -> Self {
+    #[cfg(feature = "simulator")]
+    pub fn new() -> Rng<simulator::SimulatorRng> {
         Self::from_seed(None)
     }
 
-    /// # Panics
-    ///
-    /// * If no random backend features are enabled
-    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Self {
-        #[cfg(feature = "simulator")]
-        if dst_demo_simulator_utils::simulator_enabled() {
-            return Self(Box::new(simulator::SimulatorRng::new(seed)));
-        }
-
-        if cfg!(feature = "rand") {
-            #[cfg(feature = "rand")]
-            {
-                Self::from_seed_rand(seed)
-            }
-            #[cfg(not(feature = "rand"))]
-            unreachable!()
-        } else {
-            panic!("No HTTP backend feature enabled (seed={:?})", seed.into());
-        }
+    #[must_use]
+    #[cfg(all(not(feature = "simulator"), feature = "rand"))]
+    pub fn new() -> Rng<rand::RandRng> {
+        Self::from_seed(None)
     }
 
-    #[cfg(feature = "rand")]
-    #[allow(unreachable_code)]
-    pub fn from_seed_rand<S: Into<Option<u64>>>(seed: S) -> Self {
-        #[cfg(feature = "simulator")]
-        if dst_demo_simulator_utils::simulator_enabled() {
-            return Self(Box::new(simulator::SimulatorRng::new(seed)));
-        }
+    #[cfg(feature = "simulator")]
+    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<simulator::SimulatorRng> {
+        Rng(simulator::SimulatorRng::new(seed))
+    }
 
-        Self(Box::new(rand::RandRng::new(seed)))
+    #[cfg(all(not(feature = "simulator"), feature = "rand"))]
+    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<rand::RandRng> {
+        Rng(rand::RandRng::new(seed))
     }
 }

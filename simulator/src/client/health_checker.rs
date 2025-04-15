@@ -60,7 +60,7 @@ async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let Ok(Some(resp)) = read_message(&mut String::new(), Box::pin(&mut stream)).await else {
-            log::error!("failed to receive healthy response");
+            log::debug!("failed to receive healthy response");
             continue;
         };
 

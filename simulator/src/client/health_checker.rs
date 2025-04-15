@@ -14,7 +14,7 @@ pub fn start(sim: &mut Sim<'_>) {
         loop {
             static TIMEOUT: u64 = 10;
 
-            log::info!("checking health");
+            log::debug!("checking health");
 
             tokio::select! {
                 resp = assert_health(&addr) => {

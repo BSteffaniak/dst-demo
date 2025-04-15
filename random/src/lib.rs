@@ -8,60 +8,71 @@ pub mod rand;
 #[cfg(feature = "simulator")]
 pub mod simulator;
 
+#[cfg(feature = "simulator")]
+pub type Rng = RngWrapper<simulator::SimulatorRng>;
+
+#[cfg(all(not(feature = "simulator"), feature = "rand"))]
+pub type Rng = RngWrapper<rand::RandRng>;
+
+#[cfg(feature = "simulator")]
+impl Default for Rng {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "simulator")]
+impl Rng {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::from_seed(None)
+    }
+
+    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Self {
+        Self(simulator::SimulatorRng::new(seed))
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn next_u64(&self) -> u64 {
+        <Self as GenericRng>::next_u64(self)
+    }
+}
+
+#[cfg(all(not(feature = "simulator"), feature = "rand"))]
+impl Rng {
+    #[must_use]
+    pub fn new() -> Self {
+        Self::from_seed(None)
+    }
+
+    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Self {
+        Self(rand::RandRng::new(seed))
+    }
+
+    #[inline]
+    #[must_use]
+    pub fn next_u64(&self) -> u64 {
+        <Self as GenericRng>::next_u64(self)
+    }
+}
+
+#[cfg(all(not(feature = "simulator"), feature = "rand"))]
+impl Default for Rng {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub trait GenericRng: Send + Sync {
     fn next_u64(&self) -> u64;
 }
 
-pub struct Rng<R: GenericRng>(R);
+pub struct RngWrapper<R: GenericRng>(R);
 
-impl<R: GenericRng> GenericRng for Rng<R> {
+impl<R: GenericRng> GenericRng for RngWrapper<R> {
+    #[inline]
     fn next_u64(&self) -> u64 {
         self.0.next_u64()
     }
-}
-
-impl<R: GenericRng> Rng<R> {
-    #[must_use]
-    #[cfg(feature = "simulator")]
-    pub fn new() -> Rng<simulator::SimulatorRng> {
-        Self::from_seed(None)
-    }
-
-    #[must_use]
-    #[cfg(all(not(feature = "simulator"), feature = "rand"))]
-    pub fn new() -> Rng<rand::RandRng> {
-        Self::from_seed(None)
-    }
-
-    #[cfg(feature = "simulator")]
-    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<simulator::SimulatorRng> {
-        Rng(simulator::SimulatorRng::new(seed))
-    }
-
-    #[cfg(all(not(feature = "simulator"), feature = "rand"))]
-    pub fn from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<rand::RandRng> {
-        Rng(rand::RandRng::new(seed))
-    }
-}
-
-#[must_use]
-#[cfg(feature = "simulator")]
-pub fn new_rng() -> Rng<simulator::SimulatorRng> {
-    Rng::<simulator::SimulatorRng>::from_seed(None)
-}
-
-#[must_use]
-#[cfg(all(not(feature = "simulator"), feature = "rand"))]
-pub fn new_rng() -> Rng<rand::RandRng> {
-    Rng::<rand::RandRng>::from_seed(None)
-}
-
-#[cfg(feature = "simulator")]
-pub fn rng_from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<simulator::SimulatorRng> {
-    Rng(simulator::SimulatorRng::new(seed))
-}
-
-#[cfg(all(not(feature = "simulator"), feature = "rand"))]
-pub fn rng_from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<rand::RandRng> {
-    Rng(rand::RandRng::new(seed))
 }

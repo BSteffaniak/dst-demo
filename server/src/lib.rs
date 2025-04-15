@@ -8,7 +8,7 @@ use std::{
     sync::LazyLock,
 };
 
-use dst_demo_random::{GenericRng, Rng};
+use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, TcpListener, TcpStream};
 use strum::{AsRefStr, EnumString, ParseError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -17,13 +17,7 @@ use tokio_util::sync::CancellationToken;
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
     LazyLock::new(CancellationToken::new);
 
-#[cfg(feature = "simulator")]
-static RNG: LazyLock<Rng<dst_demo_random::simulator::SimulatorRng>> =
-    LazyLock::new(dst_demo_random::new_rng);
-
-#[cfg(not(feature = "simulator"))]
-static RNG: LazyLock<Rng<dst_demo_random::rand::RandRng>> =
-    LazyLock::new(dst_demo_random::new_rng);
+static RNG: LazyLock<Rng> = LazyLock::new(Rng::new);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

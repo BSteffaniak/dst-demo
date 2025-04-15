@@ -13,5 +13,6 @@ async fn main() -> Result<(), Error> {
 
     let addr = std::env::var("ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+
     dst_demo_server::run(format!("{addr}:{port}")).await
 }

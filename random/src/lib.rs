@@ -43,3 +43,25 @@ impl<R: GenericRng> Rng<R> {
         Rng(rand::RandRng::new(seed))
     }
 }
+
+#[must_use]
+#[cfg(feature = "simulator")]
+pub fn new_rng() -> Rng<simulator::SimulatorRng> {
+    Rng::<simulator::SimulatorRng>::from_seed(None)
+}
+
+#[must_use]
+#[cfg(all(not(feature = "simulator"), feature = "rand"))]
+pub fn new_rng() -> Rng<rand::RandRng> {
+    Rng::<rand::RandRng>::from_seed(None)
+}
+
+#[cfg(feature = "simulator")]
+pub fn rng_from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<simulator::SimulatorRng> {
+    Rng(simulator::SimulatorRng::new(seed))
+}
+
+#[cfg(all(not(feature = "simulator"), feature = "rand"))]
+pub fn rng_from_seed<S: Into<Option<u64>>>(seed: S) -> Rng<rand::RandRng> {
+    Rng(rand::RandRng::new(seed))
+}

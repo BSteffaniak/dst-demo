@@ -2,10 +2,11 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
-use std::{collections::BTreeMap, num::NonZeroU16};
+use std::{collections::BTreeMap, marker::PhantomData, num::NonZeroU16};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, EnumString};
 use thiserror::Error;
@@ -21,6 +22,7 @@ pub enum Error {
     #[error("Decode")]
     Decode,
 
+    #[cfg(feature = "serde")]
     #[error(transparent)]
     Deserialize(#[from] serde_json::Error),
 
@@ -38,8 +40,9 @@ pub enum Header {
     ContentLength,
 }
 
-#[derive(Debug, Clone, Copy, EnumString, AsRefStr, Serialize, Deserialize)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+#[derive(Debug, Clone, Copy, EnumString, AsRefStr)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "SCREAMING_SNAKE_CASE"))]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum Method {
     Get,
@@ -128,111 +131,53 @@ impl std::fmt::Display for StatusCode {
     }
 }
 
-pub trait GenericClient: Send + Sync {
-    fn get(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Get, url)
-    }
-
-    fn post(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Post, url)
-    }
-
-    fn put(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Put, url)
-    }
-
-    fn patch(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Patch, url)
-    }
-
-    fn delete(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Delete, url)
-    }
-
-    fn head(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Head, url)
-    }
-
-    fn options(&self, url: &str) -> RequestBuilder {
-        self.request(Method::Options, url)
-    }
-
-    fn request(&self, method: Method, url: &str) -> RequestBuilder;
-}
-
-pub struct RequestBuilder {
-    builder: Box<dyn GenericRequestBuilder>,
-}
-
 #[async_trait]
-trait GenericRequestBuilder: Send + Sync {
+pub trait GenericRequestBuilder<R>: Send + Sync {
     fn header(&mut self, name: &str, value: &str);
     #[allow(unused)]
     fn body(&mut self, body: Bytes);
+    #[cfg(feature = "json")]
     fn form(&mut self, form: &serde_json::Value);
-    async fn send(&mut self) -> Result<Response, Error>;
+    async fn send(&mut self) -> Result<R, Error>;
 }
 
-impl RequestBuilder {
-    #[must_use]
-    pub fn header(mut self, name: &str, value: &str) -> Self {
-        self.builder.header(name, value);
-        self
-    }
-
+pub trait GenericClientBuilder<RB, C: GenericClient<RB>>: Send + Sync {
     /// # Errors
     ///
-    /// * If there was an error while sending request, redirect loop was
-    ///   detected or redirect limit was exhausted.
-    pub async fn send(mut self) -> Result<Response, Error> {
-        self.builder.send().await
-    }
+    /// * If the `Client` fails to build
+    fn build(self) -> Result<C, Error>;
 }
 
-#[async_trait]
-impl GenericRequestBuilder for RequestBuilder {
-    fn header(&mut self, name: &str, value: &str) {
-        self.builder.header(name, value);
+pub trait GenericClient<RB>: Send + Sync {
+    fn get(&self, url: &str) -> RB {
+        self.request(Method::Get, url)
     }
 
-    fn body(&mut self, body: Bytes) {
-        self.builder.body(body);
+    fn post(&self, url: &str) -> RB {
+        self.request(Method::Post, url)
     }
 
-    fn form(&mut self, form: &serde_json::Value) {
-        self.builder.form(form);
+    fn put(&self, url: &str) -> RB {
+        self.request(Method::Put, url)
     }
 
-    async fn send(&mut self) -> Result<Response, Error> {
-        self.builder.send().await
-    }
-}
-
-impl RequestBuilder {
-    /// # Panics
-    ///
-    /// * If the `serde_json` serialization to bytes fails
-    #[must_use]
-    pub fn json<T: serde::Serialize + ?Sized>(mut self, body: &T) -> Self {
-        let mut bytes: Vec<u8> = Vec::new();
-        serde_json::to_writer(&mut bytes, body).unwrap();
-        <Self as GenericRequestBuilder>::body(&mut self, bytes.into());
-        self
+    fn patch(&self, url: &str) -> RB {
+        self.request(Method::Patch, url)
     }
 
-    /// # Panics
-    ///
-    /// * If the `serde_json` serialization to bytes fails
-    #[must_use]
-    pub fn form<T: serde::Serialize + ?Sized>(mut self, form: &T) -> Self {
-        let value = serde_json::to_value(form).unwrap();
-        <Self as GenericRequestBuilder>::form(&mut self, &value);
-        self
+    fn delete(&self, url: &str) -> RB {
+        self.request(Method::Delete, url)
     }
-}
 
-pub struct Response {
-    inner: Box<dyn GenericResponse>,
+    fn head(&self, url: &str) -> RB {
+        self.request(Method::Head, url)
+    }
+
+    fn options(&self, url: &str) -> RB {
+        self.request(Method::Options, url)
+    }
+
+    fn request(&self, method: Method, url: &str) -> RB;
 }
 
 #[async_trait]
@@ -241,165 +186,259 @@ pub trait GenericResponse: Send + Sync {
     fn headers(&mut self) -> &BTreeMap<String, String>;
     async fn text(&mut self) -> Result<String, Error>;
     async fn bytes(&mut self) -> Result<Bytes, Error>;
+    #[cfg(feature = "stream")]
     fn bytes_stream(
         &mut self,
     ) -> std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, Error>> + Send>>;
 }
 
-#[async_trait]
-impl GenericResponse for Response {
-    #[must_use]
-    fn status(&self) -> StatusCode {
-        self.inner.status()
-    }
+pub struct RequestBuilderWrapper<R, B: GenericRequestBuilder<R>>(
+    pub(crate) B,
+    pub(crate) PhantomData<R>,
+);
+pub struct ClientWrapper<RB, T: GenericClient<RB>>(pub(crate) T, pub(crate) PhantomData<RB>);
+pub struct ClientBuilderWrapper<RB, C: GenericClient<RB>, T: GenericClientBuilder<RB, C>>(
+    pub(crate) T,
+    PhantomData<RB>,
+    PhantomData<C>,
+);
+pub struct ResponseWrapper<T: GenericResponse>(pub(crate) T);
 
-    #[must_use]
-    fn headers(&mut self) -> &BTreeMap<String, String> {
-        self.inner.headers()
-    }
-
-    #[must_use]
-    async fn text(&mut self) -> Result<String, Error> {
-        self.inner.text().await
-    }
-
-    #[must_use]
-    async fn bytes(&mut self) -> Result<Bytes, Error> {
-        self.inner.bytes().await
-    }
-
-    #[must_use]
-    fn bytes_stream(
-        &mut self,
-    ) -> std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, Error>> + Send>> {
-        self.inner.bytes_stream()
-    }
-}
-
-impl Response {
-    #[must_use]
-    pub fn status(&self) -> StatusCode {
-        <Self as GenericResponse>::status(self)
-    }
-
-    #[must_use]
-    pub fn headers(&mut self) -> &BTreeMap<String, String> {
-        <Self as GenericResponse>::headers(self)
-    }
-
-    /// # Errors
-    ///
-    /// * If the text response fails
-    pub async fn text(mut self) -> Result<String, Error> {
-        <Self as GenericResponse>::text(&mut self).await
-    }
-
-    /// # Errors
-    ///
-    /// * If the bytes response fails
-    pub async fn bytes(mut self) -> Result<Bytes, Error> {
-        <Self as GenericResponse>::bytes(&mut self).await
-    }
-}
-
-impl Response {
-    /// # Errors
-    ///
-    /// * If the `bytes_stream` response fails
-    pub fn bytes_stream(mut self) -> impl futures_core::Stream<Item = Result<Bytes, Error>> {
-        <Self as GenericResponse>::bytes_stream(&mut self)
-    }
-}
-
-impl Response {
-    /// # Errors
-    ///
-    /// * If the json response fails
-    pub async fn json<T: serde::de::DeserializeOwned>(mut self) -> Result<T, Error> {
-        let bytes = <Self as GenericResponse>::bytes(&mut self).await?;
-        Ok(serde_json::from_slice(&bytes)?)
-    }
-}
-
-pub struct Client {
-    client: Box<dyn GenericClient>,
-}
-
-impl Default for Client {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl Client {
-    /// # Panics
-    ///
-    /// * If the empty `ClientBuilder` somehow fails to build
-    #[must_use]
-    pub fn new() -> Self {
-        Self::builder().build().unwrap()
-    }
-
-    #[must_use]
-    pub const fn builder() -> ClientBuilder {
-        ClientBuilder {}
-    }
-}
-
-impl GenericClient for Client {
-    fn request(&self, method: Method, url: &str) -> RequestBuilder {
-        self.client.request(method, url)
-    }
-}
-
-pub struct ClientBuilder {}
-
-impl ClientBuilder {
-    /// # Errors
-    ///
-    /// * If a TLS backend cannot be initialized, or the resolver cannot load the system configuration.
-    ///
-    /// # Panics
-    ///
-    /// * If no HTTP backend features are enabled
-    pub fn build(self) -> Result<Client, Error> {
-        #[cfg(feature = "simulator")]
-        if dst_demo_simulator_utils::simulator_enabled() {
-            return Ok(Client {
-                client: Box::new(simulator::SimulatorClient),
-            });
+#[allow(unused)]
+macro_rules! impl_http {
+    ($module:ident, $local_module:ident $(,)?) => {
+        paste::paste! {
+            pub use [< impl_ $module >]::*;
         }
 
-        if cfg!(feature = "reqwest") {
-            #[cfg(feature = "reqwest")]
-            {
-                self.build_reqwest()
+        mod $local_module {
+            use crate::*;
+
+            paste::paste! {
+                pub type [< $module:camel Response >] = ResponseWrapper<$module::Response>;
+                type ModuleResponse = [< $module:camel Response >];
+
+                pub type [< $module:camel RequestBuilder >] = RequestBuilderWrapper<ModuleResponse, $module::RequestBuilder>;
+                type ModuleRequestBuilder = [< $module:camel RequestBuilder >];
+
+                pub type [< $module:camel Client >] = ClientWrapper<ModuleRequestBuilder, $module::Client>;
+                type ModuleClient = [< $module:camel Client >];
+
+                pub type [< $module:camel ClientBuilder >] = ClientBuilderWrapper<ModuleRequestBuilder, ModuleClient, $module::ClientBuilder>;
+                type ModuleClientBuilder = [< $module:camel ClientBuilder >];
             }
-            #[cfg(not(feature = "reqwest"))]
-            unreachable!()
-        } else {
-            panic!("No HTTP backend feature enabled");
+
+            impl ModuleRequestBuilder {
+                #[must_use]
+                pub fn header(mut self, name: &str, value: &str) -> Self {
+                    self.0.header(name, value);
+                    self
+                }
+
+                /// # Errors
+                ///
+                /// * If there was an error while sending request, redirect loop was
+                ///   detected or redirect limit was exhausted.
+                pub async fn send(mut self) -> Result<ModuleResponse, Error> {
+                    self.0.send().await
+                }
+            }
+
+            #[async_trait]
+            impl GenericRequestBuilder<ModuleResponse> for ModuleRequestBuilder {
+                fn header(&mut self, name: &str, value: &str) {
+                    self.0.header(name, value);
+                }
+
+                fn body(&mut self, body: Bytes) {
+                    self.0.body(body);
+                }
+
+                #[cfg(feature = "json")]
+                fn form(&mut self, form: &serde_json::Value) {
+                    self.0.form(form);
+                }
+
+                async fn send(&mut self) -> Result<ModuleResponse, Error> {
+                    self.0.send().await
+                }
+            }
+
+            #[cfg(feature = "json")]
+            impl ModuleRequestBuilder {
+                /// # Panics
+                ///
+                /// * If the `serde_json` serialization to bytes fails
+                #[must_use]
+                pub fn json<T: serde::Serialize + ?Sized>(mut self, body: &T) -> Self {
+                    let mut bytes: Vec<u8> = Vec::new();
+                    serde_json::to_writer(&mut bytes, body).unwrap();
+                    <Self as GenericRequestBuilder<ModuleResponse>>::body(&mut self, bytes.into());
+                    self
+                }
+
+                /// # Panics
+                ///
+                /// * If the `serde_json` serialization to bytes fails
+                #[must_use]
+                pub fn form<T: serde::Serialize + ?Sized>(mut self, form: &T) -> Self {
+                    let value = serde_json::to_value(form).unwrap();
+                    <Self as GenericRequestBuilder<ModuleResponse>>::form(&mut self, &value);
+                    self
+                }
+            }
+
+            #[async_trait]
+            impl GenericResponse for ModuleResponse {
+                #[must_use]
+                fn status(&self) -> StatusCode {
+                    self.0.status()
+                }
+
+                #[must_use]
+                fn headers(&mut self) -> &BTreeMap<String, String> {
+                    self.0.headers()
+                }
+
+                #[must_use]
+                async fn text(&mut self) -> Result<String, Error> {
+                    self.0.text().await
+                }
+
+                #[must_use]
+                async fn bytes(&mut self) -> Result<Bytes, Error> {
+                    self.0.bytes().await
+                }
+
+                #[must_use]
+                #[cfg(feature = "stream")]
+                fn bytes_stream(
+                    &mut self,
+                ) -> std::pin::Pin<Box<dyn futures_core::Stream<Item = Result<Bytes, Error>> + Send>>
+                {
+                    self.0.bytes_stream()
+                }
+            }
+
+            impl ModuleResponse {
+                #[must_use]
+                pub fn status(&self) -> StatusCode {
+                    <Self as GenericResponse>::status(self)
+                }
+
+                #[must_use]
+                pub fn headers(&mut self) -> &BTreeMap<String, String> {
+                    <Self as GenericResponse>::headers(self)
+                }
+
+                /// # Errors
+                ///
+                /// * If the text response fails
+                pub async fn text(mut self) -> Result<String, Error> {
+                    <Self as GenericResponse>::text(&mut self).await
+                }
+
+                /// # Errors
+                ///
+                /// * If the bytes response fails
+                pub async fn bytes(mut self) -> Result<Bytes, Error> {
+                    <Self as GenericResponse>::bytes(&mut self).await
+                }
+            }
+
+            impl GenericClientBuilder<ModuleRequestBuilder, ModuleClient> for ModuleClientBuilder {
+                fn build(self) -> Result<ModuleClient, Error> {
+                    self.0.build()
+                }
+            }
+
+            impl ModuleClientBuilder {
+                /// # Errors
+                ///
+                /// * If the `Client` fails to build
+                pub fn build(self) -> Result<ModuleClient, Error> {
+                    <Self as GenericClientBuilder<ModuleRequestBuilder, ModuleClient>>::build(self)
+                }
+            }
+
+            impl ModuleResponse {
+                /// # Errors
+                ///
+                /// * If the `bytes_stream` response fails
+                #[cfg(feature = "stream")]
+                pub fn bytes_stream(
+                    mut self,
+                ) -> impl futures_core::Stream<Item = Result<Bytes, Error>> {
+                    <Self as GenericResponse>::bytes_stream(&mut self)
+                }
+            }
+
+            impl ModuleResponse {
+                /// # Errors
+                ///
+                /// * If the json response fails
+                #[cfg(feature = "json")]
+                pub async fn json<T: serde::de::DeserializeOwned>(mut self) -> Result<T, Error> {
+                    let bytes = <Self as GenericResponse>::bytes(&mut self).await?;
+                    Ok(serde_json::from_slice(&bytes)?)
+                }
+            }
+
+            impl Default for ModuleClient {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
+
+            impl ModuleClient {
+                /// # Panics
+                ///
+                /// * If the empty `ClientBuilder` somehow fails to build
+                #[must_use]
+                pub fn new() -> Self {
+                    Self::builder().0.build().unwrap()
+                }
+
+                #[must_use]
+                pub const fn builder() -> ModuleClientBuilder {
+                    ModuleClientBuilder::new()
+                }
+            }
+
+            impl Default for ModuleClientBuilder {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
+
+            impl GenericClient<ModuleRequestBuilder> for ModuleClient {
+                fn request(&self, method: Method, url: &str) -> ModuleRequestBuilder {
+                    self.0.request(method, url)
+                }
+            }
         }
-    }
-
-    /// # Errors
-    ///
-    /// * If a TLS backend cannot be initialized, or the resolver cannot load the system configuration.
-    #[cfg(feature = "reqwest")]
-    #[allow(unreachable_code)]
-    pub fn build_reqwest(self) -> Result<Client, Error> {
-        #[cfg(feature = "simulator")]
-        if dst_demo_simulator_utils::simulator_enabled() {
-            return Ok(Client {
-                client: Box::new(simulator::SimulatorClient),
-            });
-        }
-
-        let builder = ::reqwest::Client::builder();
-        let client = builder.build()?;
-
-        Ok(Client {
-            client: Box::new(reqwest::ReqwestClient::new(client)),
-        })
-    }
+    };
 }
+
+#[cfg(feature = "simulator")]
+impl_http!(simulator, impl_simulator);
+
+#[cfg(feature = "reqwest")]
+impl_http!(reqwest, impl_reqwest);
+
+#[allow(unused)]
+macro_rules! impl_gen_types {
+    ($module:ident $(,)?) => {
+        paste::paste! {
+            pub type RequestBuilder = [< $module:camel RequestBuilder >];
+            pub type Client = [< $module:camel Client >];
+            pub type Response = [< $module:camel Response >];
+        }
+    };
+}
+
+#[cfg(feature = "simulator")]
+impl_gen_types!(simulator);
+
+#[cfg(all(not(feature = "simulator"), feature = "reqwest"))]
+impl_gen_types!(reqwest);

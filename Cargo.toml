@@ -2,6 +2,7 @@
 members = [
     "harness",
     "http",
+    "http/examples/simple_get",
     "random",
     "simulator",
     "tcp",

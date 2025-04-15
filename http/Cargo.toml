@@ -19,10 +19,11 @@ futures-util = { workspace = true }
 
 async-trait  = { workspace = true }
 bytes        = { workspace = true }
-futures-core = { workspace = true }
+futures-core = { workspace = true, optional = true }
 log          = { workspace = true }
-serde        = { workspace = true }
-serde_json   = { workspace = true }
+paste        = { workspace = true }
+serde        = { workspace = true, optional = true }
+serde_json   = { workspace = true, optional = true }
 strum        = { workspace = true, features = ["derive"] }
 thiserror    = { workspace = true }
 
@@ -33,3 +34,8 @@ fail-on-warnings = []
 
 reqwest   = ["dep:reqwest"]
 simulator = ["dep:dst_demo_simulator_utils"]
+
+json   = ["dep:serde_json", "reqwest?/json", "serde"]
+stream = ["dep:futures-core", "reqwest?/stream"]
+
+serde = ["dep:serde", "dep:serde_json"]

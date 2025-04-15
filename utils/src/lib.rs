@@ -10,8 +10,3 @@ pub static SEED: LazyLock<u64> = LazyLock::new(|| {
         .and_then(|x| x.parse::<u64>().ok())
         .unwrap_or_else(|| getrandom::u64().unwrap())
 });
-
-#[must_use]
-pub fn simulator_enabled() -> bool {
-    std::env::var("ENABLE_SIMULATOR").as_deref() == Ok("1")
-}

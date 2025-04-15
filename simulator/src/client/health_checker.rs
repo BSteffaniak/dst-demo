@@ -12,7 +12,7 @@ pub fn start(sim: &mut Sim<'_>) {
 
     sim.client("McHealthChecker", async move {
         loop {
-            static TIMEOUT: u64 = 1000;
+            static TIMEOUT: u64 = 10;
 
             log::info!("checking health");
 

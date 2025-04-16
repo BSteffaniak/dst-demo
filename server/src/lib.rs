@@ -136,9 +136,7 @@ async fn read_message(
 }
 
 async fn health(stream: &mut TcpStream) -> Result<(), std::io::Error> {
-    let mut bytes = b"healthy".to_vec();
-    bytes.push(0_u8);
-    stream.write_all(&bytes).await?;
+    stream.write_all(b"healthy\0").await?;
     log::debug!("responded with \"healthy\"");
     Ok(())
 }

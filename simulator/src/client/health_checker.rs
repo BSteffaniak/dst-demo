@@ -12,7 +12,7 @@ pub fn start(sim: &mut Sim<'_>) {
 
     sim.client("McHealthChecker", async move {
         loop {
-            static TIMEOUT: u64 = 100;
+            static TIMEOUT: u64 = 10;
 
             log::debug!("checking health");
 
@@ -49,7 +49,9 @@ async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
             }
         };
         log::debug!("[Client] Connected!");
-        match stream.write_all(b"HEALTH\0").await {
+        let mut action = b"HEALTH".to_vec();
+        action.push(0u8);
+        match stream.write_all(&action).await {
             Ok(resp) => resp,
             Err(e) => {
                 log::error!("failed to make http_request: {e:?}");

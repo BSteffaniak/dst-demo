@@ -1,0 +1,26 @@
+[package]
+authors     = ["Braden Steffaniak"]
+categories  = ["development-utils"]
+description = "Time package"
+edition     = "2024"
+keywords    = ["time"]
+license     = "MIT"
+name        = "dst_demo_time"
+readme      = "README.md"
+repository  = "https://github.com/BSteffaniak/dst-demo"
+version     = "0.1.0"
+
+[dependencies]
+dst_demo_random = { version = "0.1.0", path = "../random", optional = true, default-features = false, features = [
+    "rand",
+] }
+
+log = { workspace = true }
+
+[features]
+default = ["simulator", "std"]
+
+fail-on-warnings = []
+
+simulator = ["dep:dst_demo_random"]
+std       = []

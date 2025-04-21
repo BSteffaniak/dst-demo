@@ -282,6 +282,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "dst_demo_time"
+version = "0.1.0"
+dependencies = [
+ "dst_demo_random",
+ "log",
+]
+
+[[package]]
 name = "endian-type"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"

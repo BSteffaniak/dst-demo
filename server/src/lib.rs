@@ -99,6 +99,14 @@ async fn read_message(
     message: &mut String,
     stream: &mut TcpStream,
 ) -> Result<Option<String>, Error> {
+    if let Some(index) = message.chars().position(|x| x == 0 as char) {
+        let mut remaining = message.split_off(index);
+        let value = message.clone();
+        remaining.remove(0);
+        *message = remaining;
+        return Ok(Some(value));
+    }
+
     let mut buf = [0_u8; 1024];
 
     Ok(loop {

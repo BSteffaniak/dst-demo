@@ -242,11 +242,8 @@ async fn void_transaction(
 ) -> Result<(), Error> {
     write_message("Enter the transaction ID:", stream).await?;
     let Some(message) = read_message(message, stream).await? else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "No message received from TCP client",
-        )
-        .into());
+        use std::io::{Error, ErrorKind};
+        return Err(Error::new(ErrorKind::NotFound, "No message received from TCP client").into());
     };
     let id = message.parse::<i32>()?;
     if let Some(transaction) = bank.void_transaction(id)? {

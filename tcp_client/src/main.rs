@@ -83,7 +83,7 @@ async fn main() -> Result<(), Error> {
         let mut rl = DefaultEditor::new().unwrap();
 
         loop {
-            let readline = rl.readline(">> ");
+            let readline = rl.readline("");
 
             match readline {
                 Ok(message) => {

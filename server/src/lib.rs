@@ -54,14 +54,10 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
 
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {
-            while let Ok((mut stream, _addr)) = listener.accept().await {
+            while let Ok((mut stream, addr)) = listener.accept().await {
                 let mut message = String::new();
 
-                loop {
-                    let Some(action) = read_message(&mut message, &mut stream).await? else {
-                        break;
-                    };
-
+                while let Ok(Some(action)) = read_message(&mut message, &mut stream).await {
                     log::debug!("parsing action={action}");
                     let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {
                         log::error!("Invalid action '{action}'");
@@ -89,6 +85,8 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                         }
                     }
                 }
+
+                log::debug!("client connection connection dropped with addr={addr}");
             }
             Ok::<_, Error>(())
         })

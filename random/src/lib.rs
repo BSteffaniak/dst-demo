@@ -8,6 +8,34 @@ pub mod rand;
 #[cfg(feature = "simulator")]
 pub mod simulator;
 
+#[cfg(any(feature = "simulator", feature = "rand"))]
+pub static RNG: std::sync::LazyLock<Rng> = std::sync::LazyLock::new(Rng::new);
+
+pub trait GenericRng: Send + Sync {
+    fn next_u32(&self) -> u32;
+    fn next_i32(&self) -> i32;
+    fn next_u64(&self) -> u64;
+}
+
+pub struct RngWrapper<R: GenericRng>(R);
+
+impl<R: GenericRng> GenericRng for RngWrapper<R> {
+    #[inline]
+    fn next_u32(&self) -> u32 {
+        self.0.next_u32()
+    }
+
+    #[inline]
+    fn next_i32(&self) -> i32 {
+        self.0.next_i32()
+    }
+
+    #[inline]
+    fn next_u64(&self) -> u64 {
+        self.0.next_u64()
+    }
+}
+
 #[allow(unused)]
 macro_rules! impl_rng {
     ($type:ty $(,)?) => {
@@ -31,6 +59,18 @@ macro_rules! impl_rng {
 
             #[inline]
             #[must_use]
+            pub fn next_u32(&self) -> u32 {
+                <Self as GenericRng>::next_u32(self)
+            }
+
+            #[inline]
+            #[must_use]
+            pub fn next_i32(&self) -> i32 {
+                <Self as GenericRng>::next_i32(self)
+            }
+
+            #[inline]
+            #[must_use]
             pub fn next_u64(&self) -> u64 {
                 <Self as GenericRng>::next_u64(self)
             }
@@ -43,16 +83,3 @@ impl_rng!(simulator::SimulatorRng);
 
 #[cfg(all(not(feature = "simulator"), feature = "rand"))]
 impl_rng!(rand::RandRng);
-
-pub trait GenericRng: Send + Sync {
-    fn next_u64(&self) -> u64;
-}
-
-pub struct RngWrapper<R: GenericRng>(R);
-
-impl<R: GenericRng> GenericRng for RngWrapper<R> {
-    #[inline]
-    fn next_u64(&self) -> u64 {
-        self.0.next_u64()
-    }
-}

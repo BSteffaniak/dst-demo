@@ -2,14 +2,18 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
+mod bank;
+
 use std::{
     str::{self, FromStr as _},
     string::FromUtf8Error,
     sync::LazyLock,
 };
 
+use bank::{Bank, LocalBank, Transaction};
 use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, TcpListener, TcpStream};
+use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
@@ -29,15 +33,31 @@ pub enum Error {
     Parse(#[from] ParseError),
     #[error(transparent)]
     Tcp(#[from] dst_demo_tcp::Error),
+    #[error(transparent)]
+    Decimal(#[from] rust_decimal::Error),
+    #[error(transparent)]
+    Bank(#[from] bank::Error),
+    #[error(transparent)]
+    ParseInt(#[from] std::num::ParseIntError),
 }
 
 #[derive(Debug, EnumString, AsRefStr)]
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum ServerAction {
     Health,
+    ListTransactions,
+    GetTransaction,
+    CreateTransaction,
+    VoidTransaction,
     GenerateRandomNumber,
     Close,
     Exit,
+}
+
+impl std::fmt::Display for ServerAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_ref())
+    }
 }
 
 /// # Errors
@@ -51,6 +71,8 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let addr = addr.into();
     let listener = TcpListener::bind(&addr).await?;
     log::info!("Server listening on {addr}");
+
+    let mut bank = LocalBank::new();
 
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {
@@ -70,6 +92,18 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                     match action {
                         ServerAction::Health => {
                             health(&mut stream).await?;
+                        }
+                        ServerAction::ListTransactions => {
+                            list_transactions(&bank, &mut stream).await?;
+                        }
+                        ServerAction::GetTransaction => {
+                            get_transaction(&bank, &mut message, &mut stream).await?;
+                        }
+                        ServerAction::CreateTransaction => {
+                            create_transaction(&mut bank, &mut message, &mut stream).await?;
+                        }
+                        ServerAction::VoidTransaction => {
+                            void_transaction(&mut bank, &mut message, &mut stream).await?;
                         }
                         ServerAction::GenerateRandomNumber => {
                             generate_random_number(&mut stream).await?;
@@ -140,6 +174,87 @@ async fn write_message(message: impl Into<String>, stream: &mut TcpStream) -> Re
     let mut bytes = message.into_bytes();
     bytes.push(0_u8);
     Ok(stream.write_all(&bytes).await?)
+}
+
+impl std::fmt::Display for &Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "id={} created_at={} amount=${:.2}",
+            self.id, self.created_at, self.amount
+        ))
+    }
+}
+
+async fn list_transactions(bank: &impl Bank, stream: &mut TcpStream) -> Result<(), Error> {
+    let transactions = bank.list_transactions()?;
+
+    for transaction in transactions {
+        write_message(transaction.to_string(), stream).await?;
+    }
+
+    Ok(())
+}
+
+async fn get_transaction(
+    bank: &impl Bank,
+    message: &mut String,
+    stream: &mut TcpStream,
+) -> Result<(), Error> {
+    write_message("Enter the transaction ID:", stream).await?;
+    let Some(message) = read_message(message, stream).await? else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No message received from TCP client",
+        )
+        .into());
+    };
+    let id = message.parse::<i32>()?;
+    if let Some(transaction) = bank.get_transaction(id)? {
+        write_message(transaction.to_string(), stream).await?;
+    } else {
+        write_message("Transaction not found", stream).await?;
+    }
+    Ok(())
+}
+
+async fn create_transaction(
+    bank: &mut impl Bank,
+    message: &mut String,
+    stream: &mut TcpStream,
+) -> Result<(), Error> {
+    write_message("Enter the transaction amount:", stream).await?;
+    let Some(message) = read_message(message, stream).await? else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No message received from TCP client",
+        )
+        .into());
+    };
+    let transaction = bank.create_transaction(Decimal::from_str(&message)?)?;
+    write_message(transaction.to_string(), stream).await?;
+    Ok(())
+}
+
+async fn void_transaction(
+    bank: &mut impl Bank,
+    message: &mut String,
+    stream: &mut TcpStream,
+) -> Result<(), Error> {
+    write_message("Enter the transaction ID:", stream).await?;
+    let Some(message) = read_message(message, stream).await? else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "No message received from TCP client",
+        )
+        .into());
+    };
+    let id = message.parse::<i32>()?;
+    if let Some(transaction) = bank.void_transaction(id)? {
+        write_message(transaction.to_string(), stream).await?;
+    } else {
+        write_message("Transaction not found", stream).await?;
+    }
+    Ok(())
 }
 
 async fn health(stream: &mut TcpStream) -> Result<(), Error> {

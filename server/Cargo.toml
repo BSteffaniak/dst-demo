@@ -17,10 +17,14 @@ dst_demo_random = { version = "0.1.0", path = "../random", default-features = fa
 dst_demo_tcp = { version = "0.1.0", path = "../tcp", default-features = false, features = [
     "tokio",
 ] }
+dst_demo_time = { version = "0.1.0", path = "../time", default-features = false, features = [
+    "std",
+] }
 
 ctrlc = { workspace = true }
 log = { workspace = true }
 pretty_env_logger = { workspace = true }
+rust_decimal = { workspace = true, features = ["std"] }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [

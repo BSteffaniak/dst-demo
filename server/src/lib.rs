@@ -130,16 +130,19 @@ async fn read_message(
     })
 }
 
-async fn health(stream: &mut TcpStream) -> Result<(), std::io::Error> {
-    stream.write_all(b"healthy\0").await?;
-    log::debug!("responded with \"healthy\"");
-    Ok(())
+async fn write_message(message: impl Into<String>, stream: &mut TcpStream) -> Result<(), Error> {
+    let message = message.into();
+    log::debug!("write_message: writing message={message}");
+    let mut bytes = message.into_bytes();
+    bytes.push(0_u8);
+    Ok(stream.write_all(&bytes).await?)
 }
 
-async fn generate_random_number(stream: &mut TcpStream) -> Result<(), std::io::Error> {
-    let number = RNG.next_u64().checked_add(10000000000000000).unwrap();
-    let mut bytes = number.to_string().into_bytes();
-    bytes.push(0_u8);
-    stream.write_all(&bytes).await?;
-    Ok(())
+async fn health(stream: &mut TcpStream) -> Result<(), Error> {
+    write_message("healthy", stream).await
+}
+
+async fn generate_random_number(stream: &mut TcpStream) -> Result<(), Error> {
+    let number = RNG.next_u64();
+    write_message(number.to_string(), stream).await
 }

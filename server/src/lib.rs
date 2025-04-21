@@ -65,21 +65,19 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                         continue;
                     };
 
+                    log::info!("received {action} action");
+
                     match action {
                         ServerAction::Health => {
-                            log::info!("received health action");
                             health(&mut stream).await?;
                         }
                         ServerAction::GenerateRandomNumber => {
-                            log::info!("received generate_random_number action");
                             generate_random_number(&mut stream).await?;
                         }
                         ServerAction::Close => {
-                            log::info!("received close action");
                             break;
                         }
                         ServerAction::Exit => {
-                            log::info!("received exit action");
                             SERVER_CANCELLATION_TOKEN.cancel();
                             break;
                         }

@@ -35,7 +35,6 @@ pub enum Error {
 #[strum(serialize_all = "SCREAMING_SNAKE_CASE")]
 pub enum ServerAction {
     Health,
-    Echo,
     GenerateRandomNumber,
     Close,
     Exit,
@@ -74,10 +73,6 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                         ServerAction::Health => {
                             log::info!("received health action");
                             health(&mut stream).await?;
-                        }
-                        ServerAction::Echo => {
-                            log::info!("received echo action");
-                            echo(&mut message, &mut stream).await?;
                         }
                         ServerAction::GenerateRandomNumber => {
                             log::info!("received generate_random_number action");
@@ -141,18 +136,8 @@ async fn health(stream: &mut TcpStream) -> Result<(), std::io::Error> {
     Ok(())
 }
 
-async fn echo(message: &mut String, stream: &mut TcpStream) -> Result<(), Error> {
-    let Some(mut response) = read_message(message, stream).await? else {
-        return Ok(());
-    };
-    log::info!("echoing response={response}");
-    response.push(0 as char); // push null terminating char
-    stream.write_all(response.as_bytes()).await?;
-    Ok(())
-}
-
 async fn generate_random_number(stream: &mut TcpStream) -> Result<(), std::io::Error> {
-    let number = RNG.next_u64();
+    let number = RNG.next_u64().checked_add(10000000000000000).unwrap();
     let mut bytes = number.to_string().into_bytes();
     bytes.push(0_u8);
     stream.write_all(&bytes).await?;

@@ -10,14 +10,14 @@ use crate::{
 pub fn start(sim: &mut Sim<'_>) {
     let addr = format!("{HOST}:{PORT}");
 
-    sim.client("McHealthChecker", async move {
+    sim.client("McGenerateRandomNumber", async move {
         loop {
             static TIMEOUT: u64 = 100;
 
-            log::debug!("checking health");
+            log::debug!("generating random number");
 
             tokio::select! {
-                resp = assert_health(&addr) => {
+                resp = gen_random_number(&addr) => {
                     resp?;
                     tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 }
@@ -27,7 +27,7 @@ pub fn start(sim: &mut Sim<'_>) {
                 () = tokio::time::sleep(std::time::Duration::from_secs(TIMEOUT)) => {
                     return Err(Box::new(std::io::Error::new(
                         std::io::ErrorKind::TimedOut,
-                        format!("Failed to get healthy response within {TIMEOUT} seconds")
+                        format!("Failed to get random number response within {TIMEOUT} seconds")
                     )) as Box<dyn std::error::Error>);
                 }
             }
@@ -37,7 +37,7 @@ pub fn start(sim: &mut Sim<'_>) {
     });
 }
 
-async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
+async fn gen_random_number(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let response = loop {
         log::debug!("[Client] Connecting to server...");
         let mut stream = match try_connect(addr, 1).await {
@@ -49,7 +49,7 @@ async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
             }
         };
         log::debug!("[Client] Connected!");
-        match stream.write_all(b"HEALTH\0").await {
+        match stream.write_all(b"GENERATE_RANDOM_NUMBER\0").await {
             Ok(resp) => resp,
             Err(e) => {
                 log::error!("failed to make http_request: {e:?}");
@@ -58,7 +58,7 @@ async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let Ok(Some(resp)) = read_message(&mut String::new(), Box::pin(&mut stream)).await else {
-            log::debug!("failed to receive healthy response");
+            log::debug!("failed to receive random number response");
             continue;
         };
 
@@ -67,7 +67,7 @@ async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
         break resp;
     };
 
-    assert!(response == "healthy");
+    response.parse::<u64>().expect("Invalid random number");
 
     Ok(())
 }

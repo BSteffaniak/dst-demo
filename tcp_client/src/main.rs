@@ -57,7 +57,7 @@ async fn main() -> Result<(), Error> {
                 break;
             };
 
-            log::info!("Received response={response}");
+            println!("{response}");
         }
 
         log::debug!("Finished reading from TCP stream");

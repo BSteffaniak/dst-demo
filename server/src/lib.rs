@@ -10,7 +10,7 @@ use std::{
     sync::LazyLock,
 };
 
-use bank::{Bank, LocalBank, Transaction};
+use bank::{Bank, LocalBank, Transaction, TransactionId};
 use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, TcpListener, TcpStream};
 use rust_decimal::Decimal;
@@ -211,7 +211,7 @@ async fn get_transaction(
         )
         .into());
     };
-    let id = message.parse::<i32>()?;
+    let id = message.parse::<TransactionId>()?;
     if let Some(transaction) = bank.get_transaction(id)? {
         write_message(transaction.to_string(), stream).await?;
     } else {
@@ -248,7 +248,7 @@ async fn void_transaction(
         use std::io::{Error, ErrorKind};
         return Err(Error::new(ErrorKind::NotFound, "No message received from TCP client").into());
     };
-    let id = message.parse::<i32>()?;
+    let id = message.parse::<TransactionId>()?;
     if let Some(transaction) = bank.void_transaction(id)? {
         write_message(transaction.to_string(), stream).await?;
     } else {

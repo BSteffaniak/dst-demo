@@ -99,14 +99,15 @@ pub async fn read_message(
     let mut buf = [0_u8; 1024];
 
     Ok(loop {
-        let Ok(count) = stream
-            .read(&mut buf)
-            .await
-            .inspect_err(|e| log::trace!("Failed to read from stream: {e:?}"))
-        else {
-            break None;
+        let count = match stream.read(&mut buf).await {
+            Ok(count) => count,
+            Err(e) => {
+                log::error!("read_message: failed to read from stream: {e:?}");
+                break None;
+            }
         };
         if count == 0 {
+            log::debug!("read_message: received empty response");
             break None;
         }
         log::debug!("read count={count}");

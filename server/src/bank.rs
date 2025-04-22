@@ -95,7 +95,8 @@ impl Bank for LocalBank {
 
         assert!(
             new_transaction.created_at >= originally_created_at,
-            "Time went backwards"
+            "Time went backwards new_transaction.created_at={} originally_created_at={originally_created_at}",
+            new_transaction.created_at
         );
 
         Ok(Some(new_transaction))

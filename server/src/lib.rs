@@ -191,6 +191,11 @@ impl std::fmt::Display for &Transaction {
 async fn list_transactions(bank: &impl Bank, stream: &mut TcpStream) -> Result<(), Error> {
     let transactions = bank.list_transactions()?;
 
+    if transactions.is_empty() {
+        log::debug!("list_transactions: no transactions");
+        return Ok(());
+    }
+
     for transaction in transactions {
         write_message(transaction.to_string(), stream).await?;
     }
@@ -205,9 +210,10 @@ async fn get_transaction(
 ) -> Result<(), Error> {
     write_message("Enter the transaction ID:", stream).await?;
     let Some(message) = read_message(message, stream).await? else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "No message received from TCP client",
+        use std::io::{Error, ErrorKind};
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            "get_transaction: No message received from TCP client",
         )
         .into());
     };
@@ -227,9 +233,10 @@ async fn create_transaction(
 ) -> Result<(), Error> {
     write_message("Enter the transaction amount:", stream).await?;
     let Some(message) = read_message(message, stream).await? else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "No message received from TCP client",
+        use std::io::{Error, ErrorKind};
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            "create_transaction: No message received from TCP client",
         )
         .into());
     };
@@ -246,7 +253,11 @@ async fn void_transaction(
     write_message("Enter the transaction ID:", stream).await?;
     let Some(message) = read_message(message, stream).await? else {
         use std::io::{Error, ErrorKind};
-        return Err(Error::new(ErrorKind::NotFound, "No message received from TCP client").into());
+        return Err(Error::new(
+            ErrorKind::NotFound,
+            "void_transaction: No message received from TCP client",
+        )
+        .into());
     };
     let id = message.parse::<TransactionId>()?;
     if let Some(transaction) = bank.void_transaction(id)? {

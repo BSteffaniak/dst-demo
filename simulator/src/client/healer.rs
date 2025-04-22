@@ -1,10 +1,10 @@
-use dst_demo_simulator_harness::{rand::Rng as _, turmoil::Sim};
+use dst_demo_simulator_harness::{random::RNG, turmoil::Sim};
 
-use crate::{ACTIONS, Action, RNG, SIMULATOR_CANCELLATION_TOKEN};
+use crate::{ACTIONS, Action, SIMULATOR_CANCELLATION_TOKEN};
 
 /// # Panics
 ///
-/// * If `CANCELLATION_TOKEN` `Mutex` fails to lock
+/// * If `ACTIONS` `Mutex` fails to lock
 pub fn start(sim: &mut Sim<'_>) {
     sim.client("McHealer", {
         async move {
@@ -13,7 +13,7 @@ pub fn start(sim: &mut Sim<'_>) {
                     () = SIMULATOR_CANCELLATION_TOKEN.cancelled() => {
                         break;
                     }
-                    () = tokio::time::sleep(std::time::Duration::from_secs(RNG.lock().unwrap().gen_range(0..60))) => {}
+                    () = tokio::time::sleep(std::time::Duration::from_secs(RNG.gen_range(0..1_000_000))) => {}
                 }
 
                 ACTIONS.lock().unwrap().push_back(Action::Bounce);

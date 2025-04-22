@@ -39,19 +39,17 @@ pub fn start(sim: &mut Sim<'_>) {
 
 async fn assert_health(addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let response = loop {
-        log::debug!("[Client] Connecting to server...");
+        log::trace!("[Client] Connecting to server...");
         let mut stream = match try_connect(addr, 1).await {
             Ok(stream) => stream,
             Err(e) => {
                 log::error!("[Client] Failed to connect to server: {e:?}");
-                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 continue;
             }
         };
-        log::debug!("[Client] Connected!");
-        let mut action = b"HEALTH".to_vec();
-        action.push(0u8);
-        match stream.write_all(&action).await {
+        log::trace!("[Client] Connected!");
+        match stream.write_all(b"HEALTH\0").await {
             Ok(resp) => resp,
             Err(e) => {
                 log::error!("failed to make http_request: {e:?}");

@@ -306,6 +306,8 @@ dependencies = [
  "dst_demo_simulator_harness",
  "log",
  "pretty_env_logger",
+ "rust_decimal",
+ "strum",
  "thiserror",
  "tokio",
  "tokio-util",
@@ -318,6 +320,7 @@ dependencies = [
  "dst_demo_random",
  "dst_demo_simulator_utils",
  "dst_demo_tcp",
+ "dst_demo_time",
  "getrandom 0.3.2",
  "log",
  "rand",
@@ -362,6 +365,7 @@ name = "dst_demo_time"
 version = "0.1.0"
 dependencies = [
  "dst_demo_random",
+ "dst_demo_simulator_utils",
  "log",
 ]
 

@@ -80,6 +80,16 @@ impl Bank for LocalBank {
                 .unwrap()
                 .as_secs() as CreateTime,
         };
+        assert!(
+            self.current_id > transaction.id,
+            "Invalid id={}",
+            transaction.id
+        );
+        assert!(
+            transaction.created_at > 0,
+            "Invalid created_at={}",
+            transaction.created_at
+        );
         self.transactions.push(transaction);
         Ok(self.transactions.last().unwrap())
     }

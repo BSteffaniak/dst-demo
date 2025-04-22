@@ -2,7 +2,7 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
-mod bank;
+pub mod bank;
 
 use std::{
     str::{self, FromStr as _},

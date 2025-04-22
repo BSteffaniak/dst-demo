@@ -89,24 +89,22 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
 
                     log::info!("received {action} action");
 
-                    match action {
-                        ServerAction::Health => {
-                            health(&mut stream).await?;
-                        }
+                    let resp = match action {
+                        ServerAction::Health => health(&mut stream).await,
                         ServerAction::ListTransactions => {
-                            list_transactions(&bank, &mut stream).await?;
+                            list_transactions(&bank, &mut stream).await
                         }
                         ServerAction::GetTransaction => {
-                            get_transaction(&bank, &mut message, &mut stream).await?;
+                            get_transaction(&bank, &mut message, &mut stream).await
                         }
                         ServerAction::CreateTransaction => {
-                            create_transaction(&mut bank, &mut message, &mut stream).await?;
+                            create_transaction(&mut bank, &mut message, &mut stream).await
                         }
                         ServerAction::VoidTransaction => {
-                            void_transaction(&mut bank, &mut message, &mut stream).await?;
+                            void_transaction(&mut bank, &mut message, &mut stream).await
                         }
                         ServerAction::GenerateRandomNumber => {
-                            generate_random_number(&mut stream).await?;
+                            generate_random_number(&mut stream).await
                         }
                         ServerAction::Close => {
                             break;
@@ -115,6 +113,10 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                             SERVER_CANCELLATION_TOKEN.cancel();
                             break;
                         }
+                    };
+
+                    if let Err(e) = resp {
+                        log::error!("Failed to handle action={action}: {e:?}");
                     }
                 }
 

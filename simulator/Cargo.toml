@@ -17,6 +17,7 @@ dst_demo_server = { version = "0.1.0", path = "../server", default-features = fa
 dst_demo_simulator_harness = { version = "0.1.0", path = "../harness", default-features = false, features = [
     "random",
     "tcp",
+    "time",
 ] }
 
 ctrlc             = { workspace = true }

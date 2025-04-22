@@ -21,6 +21,9 @@ dst_demo_simulator_utils = { version = "0.1.0", path = "../utils", default-featu
 dst_demo_tcp = { version = "0.1.0", path = "../tcp", optional = true, default-features = false, features = [
     "simulator",
 ] }
+dst_demo_time = { version = "0.1.0", path = "../time", optional = true, default-features = false, features = [
+    "simulator",
+] }
 
 getrandom = { workspace = true }
 log       = { workspace = true }
@@ -34,3 +37,4 @@ fail-on-warnings = []
 
 random = ["dep:dst_demo_random"]
 tcp    = ["dep:dst_demo_tcp"]
+time   = ["dep:dst_demo_time"]

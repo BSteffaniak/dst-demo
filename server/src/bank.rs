@@ -4,26 +4,50 @@ use std::time::SystemTime;
 
 use rust_decimal::Decimal;
 
+pub type TransactionId = i32;
+pub type CreateTime = i32;
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {}
 
 pub trait Bank: Send + Sync {
+    /// # Errors
+    ///
+    /// * If the `Bank` implementation fails to list the `Transaction`s
     fn list_transactions(&self) -> Result<&[Transaction], Error>;
-    fn get_transaction(&self, id: i32) -> Result<Option<&Transaction>, Error>;
+
+    /// # Errors
+    ///
+    /// * If the `Bank` implementation fails to get the `Transaction`
+    fn get_transaction(&self, id: TransactionId) -> Result<Option<&Transaction>, Error>;
+
+    /// # Errors
+    ///
+    /// * If the `Bank` implementation fails to create the `Transaction`
     fn create_transaction(&mut self, amount: Decimal) -> Result<&Transaction, Error>;
-    fn void_transaction(&mut self, id: i32) -> Result<Option<&Transaction>, Error>;
+
+    /// # Errors
+    ///
+    /// * If the `Bank` implementation fails to void the `Transaction`
+    fn void_transaction(&mut self, id: TransactionId) -> Result<Option<&Transaction>, Error>;
 }
 
 #[derive(Debug, Clone)]
 pub struct Transaction {
-    pub id: i32,
+    pub id: TransactionId,
     pub amount: Decimal,
-    pub created_at: i32,
+    pub created_at: CreateTime,
 }
 
 pub struct LocalBank {
     transactions: Vec<Transaction>,
-    current_id: i32,
+    current_id: TransactionId,
+}
+
+impl Default for LocalBank {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LocalBank {
@@ -41,7 +65,7 @@ impl Bank for LocalBank {
         Ok(&self.transactions)
     }
 
-    fn get_transaction(&self, id: i32) -> Result<Option<&Transaction>, Error> {
+    fn get_transaction(&self, id: TransactionId) -> Result<Option<&Transaction>, Error> {
         Ok(self.transactions.iter().find(|x| x.id == id))
     }
 
@@ -54,13 +78,13 @@ impl Bank for LocalBank {
             created_at: dst_demo_time::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_millis() as i32,
+                .as_secs() as CreateTime,
         };
         self.transactions.push(transaction);
         Ok(self.transactions.last().unwrap())
     }
 
-    fn void_transaction(&mut self, id: i32) -> Result<Option<&Transaction>, Error> {
+    fn void_transaction(&mut self, id: TransactionId) -> Result<Option<&Transaction>, Error> {
         let Some(existing) = self.transactions.iter().find(|x| x.id == id) else {
             return Ok(None);
         };

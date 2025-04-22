@@ -7,6 +7,13 @@ pub use getrandom;
 pub use rand;
 pub use turmoil;
 
+#[cfg(feature = "random")]
+pub use dst_demo_random as random;
+#[cfg(feature = "tcp")]
+pub use dst_demo_tcp as tcp;
+#[cfg(feature = "time")]
+pub use dst_demo_time as time;
+
 /// # Safety
 ///
 /// This must be called before any multi-threading occurs. Setting environment

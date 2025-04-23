@@ -27,6 +27,11 @@ This repository demonstrates **Deterministic Simulation Testing (DST)**. It's a 
 
 ## 🧑‍💻 Usage Instructions
 
+### Prerequisites
+
+- Rust
+- Cargo
+
 This project includes three main executables:
 
 - 🏦 A **real TCP server** (`dst_demo_server`)

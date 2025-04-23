@@ -76,13 +76,17 @@ impl InteractionPlan<Interaction> for FaultInjectionInteractionPlan {
     ///
     /// * If the `RNG` `Mutex` fails to lock
     fn gen_interactions(&mut self, count: u64) {
+        let len = self.plan.len() as u64;
+
         let rng: &dst_demo_simulator_harness::random::Rng = &RNG;
         let mut rng: dst_demo_simulator_harness::random::Rng = rng.clone();
+
         for i in 1..=count {
             loop {
                 let interaction_type = InteractionType::iter().choose(&mut rng).unwrap();
                 log::trace!(
-                    "gen_interactions: generating interaction {i}/{count} interaction_type={interaction_type:?}"
+                    "gen_interactions: generating interaction {i}/{count} ({}) interaction_type={interaction_type:?}",
+                    i + len
                 );
                 match interaction_type {
                     InteractionType::Sleep => {

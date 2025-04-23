@@ -157,7 +157,7 @@ fn run_simulation(duration_secs: u64) -> Result<(), Box<dyn std::error::Error>> 
     host::server::start(&mut sim);
 
     client::health_checker::start(&mut sim);
-    client::healer::start(&mut sim);
+    client::fault_injector::start(&mut sim);
     client::banker::start(&mut sim);
 
     while !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {

@@ -6,7 +6,7 @@ use crate::{ACTIONS, Action, SIMULATOR_CANCELLATION_TOKEN};
 ///
 /// * If `ACTIONS` `Mutex` fails to lock
 pub fn start(sim: &mut Sim<'_>) {
-    sim.client("McHealer", {
+    sim.client("FaultInjector", {
         async move {
             loop {
                 tokio::select! {

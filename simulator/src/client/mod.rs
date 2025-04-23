@@ -1,3 +1,3 @@
 pub mod banker;
-pub mod healer;
+pub mod fault_injector;
 pub mod health_checker;

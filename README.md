@@ -52,3 +52,21 @@ By using turmoil’s simulation of network and time, this project:
 ├── random/      # Random abstraction library that allows swapping implementation between simulated (deterministically seeded) and fully random at compile-time
 └── time/        # Time abstraction library that allows swapping implementation between simulated time and real time at compile-time
 ```
+
+---
+
+## 📚 References & Further Reading
+
+Deterministic Simulation Testing (DST) is an evolving practice with growing adoption in distributed systems and observability tooling. Here are some great resources for deeper exploration:
+
+- 📄 [**VOPR: Viewstamped Operation Replicator** (TigerBeetle)](https://web.archive.org/web/20250126140225/https://docs.tigerbeetle.com/about/vopr/)  
+  Introduces the foundation behind TigerBeetle's deterministic testing framework, focusing on time-travel debugging and logical provenance of state changes.
+
+- 📓 [**Notebook Interfaces for Distributed Systems** (Antithesis)](https://antithesis.com/blog/notebook_interfaces/)  
+  Explores DST through the lens of test notebooks that record, replay, and introspect execution paths in a deterministic simulation.
+
+- 🧪 [**Mostly DST in Go** (Polar Signals)](https://www.polarsignals.com/blog/posts/2024/05/28/mostly-dst-in-go)  
+  A practical take on applying DST principles to Go-based systems, with insights on flake elimination and reliability gains.
+
+- 🧰 [**tokio-turmoil GitHub Repo**](https://github.com/tokio-rs/turmoil)  
+  The library powering this repository. Simulates network conditions, time, and failures in a deterministic way.

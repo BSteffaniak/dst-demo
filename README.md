@@ -92,7 +92,7 @@ This will execute a series of predefined interaction plans in a fully simulated 
 
 ```bash
 SIMULATOR_SEED=123 SIMULATOR_DURATION=60 SIMULATOR_STEP_MULTIPLIER=10 \
-  cargo run --release -p dst_demo_server_simulator
+  cargo run --release -p dst_demo_server_simulator/
 ```
 
 ---
@@ -131,14 +131,30 @@ By using turmoil’s simulation of network and time, this project:
 
 Deterministic Simulation Testing (DST) is an evolving practice with growing adoption in distributed systems and observability tooling. Here are some great resources for deeper exploration:
 
-- 📄 [**VOPR: Viewstamped Operation Replicator** (TigerBeetle)](https://web.archive.org/web/20250126140225/https://docs.tigerbeetle.com/about/vopr/)  
+- 📄 [(reading) **VOPR: Viewstamped Operation Replicator** (TigerBeetle)](https://web.archive.org/web/20250126140225/https://docs.tigerbeetle.com/about/vopr/)  
   Introduces the foundation behind TigerBeetle's deterministic testing framework, focusing on time-travel debugging and logical provenance of state changes.
 
-- 📓 [**Notebook Interfaces for Distributed Systems** (Antithesis)](https://antithesis.com/blog/notebook_interfaces/)  
+- 📓 [(reading) **Notebook Interfaces for Distributed Systems** (Antithesis)](https://antithesis.com/blog/notebook_interfaces/)  
   Explores DST through the lens of test notebooks that record, replay, and introspect execution paths in a deterministic simulation.
 
-- 🧪 [**Mostly DST in Go** (Polar Signals)](https://www.polarsignals.com/blog/posts/2024/05/28/mostly-dst-in-go)  
+- 🧪 [(reading) **Mostly DST in Go** (Polar Signals)](https://www.polarsignals.com/blog/posts/2024/05/28/mostly-dst-in-go)  
   A practical take on applying DST principles to Go-based systems, with insights on flake elimination and reliability gains.
 
-- 🧰 [**tokio-turmoil GitHub Repo**](https://github.com/tokio-rs/turmoil)  
+- 🧰 [(code) **tokio-turmoil GitHub Repo** (Tokio)](https://github.com/tokio-rs/turmoil)  
+  A Rust testing framework for deterministically simulating networks and failures in asynchronous systems.
+
+- 🌀 [(code) **Limbo: Deterministic Simulation Testing for Turso** (Turso)](https://github.com/tursodatabase/limbo) ([simulator](https://github.com/tursodatabase/limbo/blob/main/simulator))  
+  Turso's approach to deterministic simulation testing, focusing on reproducing and debugging distributed system issues in a controlled environment.
   The library powering this repository. Simulates network conditions, time, and failures in a deterministic way.
+
+- 📚 [(reading) **sled simulation guide** (jepsen-proof engineering)](https://sled.rs/simulation.html)  
+  A guide to simulation testing in the `sled` embedded database, emphasizing techniques for making systems resilient and “Jepsen-proof.”
+
+- 🎥 [(video) **"Testing Distributed Systems w/ Deterministic Simulation"** (Will Wilson - Antithesis)](https://www.youtube.com/watch?v=4fFDFbi3toc)  
+  A talk on how deterministic simulation testing improves reproducibility and confidence in distributed systems development.
+
+- 🎥 [(video) **FF meetup #4 - Deterministic simulation testing** (Pekka Enberg - Turso)](https://www.youtube.com/live/29Vz5wkoUR8)  
+  A meetup session featuring real-world applications and insights into deterministic simulation testing from industry practitioners.
+
+- 🧑‍💻 [(code) **Hiisi** (Pekka Enberg - Turso)](https://github.com/penberg/hiisi)  
+  A proof of concept libSQL written in Rust following TigerBeetle-style with deterministic simulation testing

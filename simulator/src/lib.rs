@@ -11,7 +11,6 @@ use std::{
 };
 
 use dst_demo_simulator_harness::turmoil::{self, Sim, net::TcpStream};
-use host::server::HOST;
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
@@ -22,7 +21,7 @@ pub mod plan;
 
 pub static SIMULATOR_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
     LazyLock::new(CancellationToken::new);
-pub static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
+static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(VecDeque::new())));
 
 #[derive(Debug, thiserror::Error)]
@@ -33,8 +32,18 @@ pub enum Error {
     FromUtf8(#[from] FromUtf8Error),
 }
 
-pub enum Action {
-    Bounce,
+enum Action {
+    Bounce(String),
+}
+
+/// # Panics
+///
+/// * If the `ACTIONS` `Mutex` fails to lock
+pub fn queue_bounce(host: impl Into<String>) {
+    ACTIONS
+        .lock()
+        .unwrap()
+        .push_back(Action::Bounce(host.into()));
 }
 
 /// # Panics
@@ -44,9 +53,9 @@ pub fn handle_actions(sim: &mut Sim<'_>) {
     let actions = ACTIONS.lock().unwrap().drain(..).collect::<Vec<_>>();
     for action in actions {
         match action {
-            Action::Bounce => {
-                log::info!("bouncing '{HOST}'");
-                sim.bounce(HOST);
+            Action::Bounce(host) => {
+                log::info!("bouncing '{host}'");
+                sim.bounce(host);
             }
         }
     }

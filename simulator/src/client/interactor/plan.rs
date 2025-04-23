@@ -5,10 +5,21 @@ use dst_demo_simulator_harness::{
     rand::{Rng, seq::IteratorRandom},
     random::RNG,
 };
-use interaction::{Interaction, InteractionType};
-use strum::IntoEnumIterator as _;
+use rust_decimal::Decimal;
+use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
-pub mod interaction;
+use crate::plan::InteractionPlan;
+
+#[derive(Clone, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(EnumIter))]
+#[strum_discriminants(name(InteractionType))]
+pub enum Interaction {
+    Sleep(Duration),
+    ListTransactions,
+    GetTransaction { id: TransactionId },
+    CreateTransaction { amount: Decimal },
+    VoidTransaction { id: TransactionId },
+}
 
 pub struct InteractionPlanContext {
     curr_id: TransactionId,
@@ -39,19 +50,19 @@ impl InteractionPlanContext {
     }
 }
 
-pub struct InteractionPlan {
+pub struct BankInteractionPlan {
     context: InteractionPlanContext,
     step: u64,
     pub plan: Vec<Interaction>,
 }
 
-impl Default for InteractionPlan {
+impl Default for BankInteractionPlan {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl InteractionPlan {
+impl BankInteractionPlan {
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -60,8 +71,15 @@ impl InteractionPlan {
             plan: vec![],
         }
     }
+}
 
-    pub fn step(&mut self) -> Option<&Interaction> {
+impl InteractionPlan<Interaction> for BankInteractionPlan {
+    #[must_use]
+    fn new() -> Self {
+        Self::new()
+    }
+
+    fn step(&mut self) -> Option<&Interaction> {
         #[allow(clippy::cast_possible_truncation)]
         if let Some(item) = self.plan.get(self.step as usize) {
             self.step += 1;
@@ -72,10 +90,16 @@ impl InteractionPlan {
         }
     }
 
+    #[must_use]
+    fn with_gen_interactions(mut self, count: u64) -> Self {
+        self.gen_interactions(count);
+        self
+    }
+
     /// # Panics
     ///
     /// * If the `RNG` `Mutex` fails to lock
-    pub fn gen_interactions(&mut self, count: u64) {
+    fn gen_interactions(&mut self, count: u64) {
         let rng: &dst_demo_simulator_harness::random::Rng = &RNG;
         let mut rng: dst_demo_simulator_harness::random::Rng = rng.clone();
         for i in 1..=count {
@@ -120,12 +144,12 @@ impl InteractionPlan {
     }
 
     #[must_use]
-    pub fn with_interaction(mut self, interaction: Interaction) -> Self {
+    fn with_interaction(mut self, interaction: Interaction) -> Self {
         self.add_interaction(interaction);
         self
     }
 
-    pub fn add_interaction(&mut self, interaction: Interaction) {
+    fn add_interaction(&mut self, interaction: Interaction) {
         log::trace!("add_interaction: adding interaction interaction={interaction:?}");
         match &interaction {
             Interaction::Sleep(..)

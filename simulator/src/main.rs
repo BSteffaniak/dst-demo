@@ -4,9 +4,7 @@
 
 use std::time::Duration;
 
-use dst_demo_server_simulator::{
-    SIMULATOR_CANCELLATION_TOKEN, client, handle_actions, host, plan::InteractionPlan,
-};
+use dst_demo_server_simulator::{SIMULATOR_CANCELLATION_TOKEN, client, handle_actions, host};
 use dst_demo_simulator_harness::{
     random::RNG,
     time::simulator::{EPOCH_OFFSET, STEP_MULTIPLIER},
@@ -119,14 +117,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Server simulator starting\n{}", run_info());
 
-    let interaction_count = RNG.gen_range(0..1000);
-
-    log::debug!("Generating test plan interaction_count={interaction_count}");
-
-    let mut plan = InteractionPlan::new();
-
-    plan.gen_interactions(interaction_count);
-
     ctrlc::set_handler(move || SIMULATOR_CANCELLATION_TOKEN.cancel())
         .expect("Error setting Ctrl-C handler");
 
@@ -138,7 +128,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let start = std::time::SystemTime::now();
     STEP.store(1, std::sync::atomic::Ordering::SeqCst);
 
-    let resp = std::panic::catch_unwind(|| run_simulation(duration_secs, plan));
+    let resp = std::panic::catch_unwind(|| run_simulation(duration_secs));
     let step = STEP.load(std::sync::atomic::Ordering::SeqCst);
 
     let end_system = dst_demo_simulator_harness::time::now();
@@ -159,10 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     resp.unwrap()
 }
 
-fn run_simulation(
-    duration_secs: u64,
-    plan: InteractionPlan,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn run_simulation(duration_secs: u64) -> Result<(), Box<dyn std::error::Error>> {
     let mut sim = turmoil::Builder::new()
         .simulation_duration(Duration::from_secs(duration_secs))
         .build_with_rng(Box::new(RNG.clone()));
@@ -172,7 +159,7 @@ fn run_simulation(
     client::health_checker::start(&mut sim);
     client::fault_injector::start(&mut sim);
     client::healer::start(&mut sim);
-    client::interactor::start(&mut sim, plan);
+    client::interactor::start(&mut sim);
 
     while !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
         let step = STEP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

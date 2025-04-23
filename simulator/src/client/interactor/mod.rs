@@ -1,19 +1,26 @@
 use dst_demo_server::ServerAction;
 use dst_demo_simulator_harness::turmoil::{Sim, net::TcpStream};
+use plan::{BankInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt as _;
+
+mod plan;
 
 use crate::{
     SIMULATOR_CANCELLATION_TOKEN,
     host::server::{HOST, PORT},
-    plan::{InteractionPlan, interaction::Interaction},
+    plan::InteractionPlan as _,
     try_connect,
 };
 
 /// # Panics
 ///
 /// * If `CANCELLATION_TOKEN` `Mutex` fails to lock
-pub fn start(sim: &mut Sim<'_>, mut plan: InteractionPlan) {
+pub fn start(sim: &mut Sim<'_>) {
     let addr = format!("{HOST}:{PORT}");
+
+    log::debug!("Generating initial test plan");
+
+    let mut plan = BankInteractionPlan::new().with_gen_interactions(1000);
 
     sim.client("McInteractor", async move {
         SIMULATOR_CANCELLATION_TOKEN

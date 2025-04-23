@@ -90,12 +90,6 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
         }
     }
 
-    #[must_use]
-    fn with_gen_interactions(mut self, count: u64) -> Self {
-        self.gen_interactions(count);
-        self
-    }
-
     /// # Panics
     ///
     /// * If the `RNG` `Mutex` fails to lock
@@ -141,12 +135,6 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
             }
         }
         drop(rng);
-    }
-
-    #[must_use]
-    fn with_interaction(mut self, interaction: Interaction) -> Self {
-        self.add_interaction(interaction);
-        self
     }
 
     fn add_interaction(&mut self, interaction: Interaction) {

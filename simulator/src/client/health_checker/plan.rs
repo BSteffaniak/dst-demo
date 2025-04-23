@@ -7,14 +7,6 @@ use crate::{
     plan::InteractionPlan,
 };
 
-#[derive(Clone, Debug, EnumDiscriminants)]
-#[strum_discriminants(derive(EnumIter))]
-#[strum_discriminants(name(InteractionType))]
-pub enum Interaction {
-    Sleep(Duration),
-    HealthCheck(String),
-}
-
 pub struct InteractionPlanContext {}
 
 impl Default for InteractionPlanContext {
@@ -52,6 +44,14 @@ impl HealthCheckInteractionPlan {
             plan: vec![],
         }
     }
+}
+
+#[derive(Clone, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(EnumIter))]
+#[strum_discriminants(name(InteractionType))]
+pub enum Interaction {
+    Sleep(Duration),
+    HealthCheck(String),
 }
 
 impl InteractionPlan<Interaction> for HealthCheckInteractionPlan {

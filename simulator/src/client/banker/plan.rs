@@ -10,17 +10,6 @@ use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
 use crate::plan::InteractionPlan;
 
-#[derive(Clone, Debug, EnumDiscriminants)]
-#[strum_discriminants(derive(EnumIter))]
-#[strum_discriminants(name(InteractionType))]
-pub enum Interaction {
-    Sleep(Duration),
-    ListTransactions,
-    GetTransaction { id: TransactionId },
-    CreateTransaction { amount: Decimal },
-    VoidTransaction { id: TransactionId },
-}
-
 pub struct InteractionPlanContext {
     curr_id: TransactionId,
     transactions: Vec<Transaction>,
@@ -71,6 +60,17 @@ impl BankerInteractionPlan {
             plan: vec![],
         }
     }
+}
+
+#[derive(Clone, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(EnumIter))]
+#[strum_discriminants(name(InteractionType))]
+pub enum Interaction {
+    Sleep(Duration),
+    ListTransactions,
+    GetTransaction { id: TransactionId },
+    CreateTransaction { amount: Decimal },
+    VoidTransaction { id: TransactionId },
 }
 
 impl InteractionPlan<Interaction> for BankerInteractionPlan {

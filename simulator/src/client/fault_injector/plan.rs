@@ -8,14 +8,6 @@ use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
 use crate::{host::server::HOST, plan::InteractionPlan};
 
-#[derive(Clone, Debug, EnumDiscriminants)]
-#[strum_discriminants(derive(EnumIter))]
-#[strum_discriminants(name(InteractionType))]
-pub enum Interaction {
-    Sleep(Duration),
-    Bounce(String),
-}
-
 pub struct InteractionPlanContext {}
 
 impl Default for InteractionPlanContext {
@@ -53,6 +45,14 @@ impl FaultInjectionInteractionPlan {
             plan: vec![],
         }
     }
+}
+
+#[derive(Clone, Debug, EnumDiscriminants)]
+#[strum_discriminants(derive(EnumIter))]
+#[strum_discriminants(name(InteractionType))]
+pub enum Interaction {
+    Sleep(Duration),
+    Bounce(String),
 }
 
 impl InteractionPlan<Interaction> for FaultInjectionInteractionPlan {

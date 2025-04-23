@@ -50,19 +50,19 @@ impl InteractionPlanContext {
     }
 }
 
-pub struct BankInteractionPlan {
+pub struct BankerInteractionPlan {
     context: InteractionPlanContext,
     step: u64,
     pub plan: Vec<Interaction>,
 }
 
-impl Default for BankInteractionPlan {
+impl Default for BankerInteractionPlan {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl BankInteractionPlan {
+impl BankerInteractionPlan {
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -73,7 +73,7 @@ impl BankInteractionPlan {
     }
 }
 
-impl InteractionPlan<Interaction> for BankInteractionPlan {
+impl InteractionPlan<Interaction> for BankerInteractionPlan {
     #[must_use]
     fn new() -> Self {
         Self::new()

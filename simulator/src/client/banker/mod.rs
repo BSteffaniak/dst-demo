@@ -1,6 +1,6 @@
 use dst_demo_server::ServerAction;
 use dst_demo_simulator_harness::turmoil::{Sim, net::TcpStream};
-use plan::{BankInteractionPlan, Interaction};
+use plan::{BankerInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt as _;
 
 mod plan;
@@ -20,9 +20,9 @@ pub fn start(sim: &mut Sim<'_>) {
 
     log::debug!("Generating initial test plan");
 
-    let mut plan = BankInteractionPlan::new().with_gen_interactions(1000);
+    let mut plan = BankerInteractionPlan::new().with_gen_interactions(1000);
 
-    sim.client("McInteractor", async move {
+    sim.client("Banker", async move {
         SIMULATOR_CANCELLATION_TOKEN
             .run_until_cancelled(async move {
                 loop {
@@ -96,16 +96,16 @@ async fn perform_interaction(
     }
 
     loop {
-        log::trace!("[Interactor Client] Connecting to server...");
+        log::trace!("[Banker Client] Connecting to server...");
         let mut stream = match try_connect(addr, 1).await {
             Ok(stream) => stream,
             Err(e) => {
-                log::error!("[Interactor Client] Failed to connect to server: {e:?}");
+                log::error!("[Banker Client] Failed to connect to server: {e:?}");
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 continue;
             }
         };
-        log::trace!("[Interactor Client] Connected!");
+        log::trace!("[Banker Client] Connected!");
 
         match interaction {
             Interaction::Sleep(..) => {

@@ -1,12 +1,12 @@
 [workspace]
 members = [
-    "harness",
     "random",
     "simulator",
+    "simulator/harness",
+    "simulator/utils",
     "tcp",
     "tcp_client",
     "time",
-    "utils",
 ]
 
 resolver = "2"

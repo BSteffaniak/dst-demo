@@ -14,7 +14,7 @@ version     = "0.1.0"
 dst_demo_server = { version = "0.1.0", path = "../server", default-features = false, features = [
     "simulator",
 ] }
-dst_demo_simulator_harness = { version = "0.1.0", path = "../harness", default-features = false, features = [
+dst_demo_simulator_harness = { version = "0.1.0", path = "harness", default-features = false, features = [
     "random",
     "tcp",
     "time",

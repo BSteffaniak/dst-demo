@@ -118,6 +118,22 @@ By using turmoil’s simulation of network and time, this project:
 
 ---
 
+## 🧠 Concepts to Explore
+
+- Simulated network partitions
+- Delayed message delivery
+- Time-travel debugging
+- Epoch-based behavior
+
+---
+
+## 🐞 Known Bugs Found
+
+- ✅ Epochalypse bug: failure around timestamp boundary logic.
+- 🔍 Potential for discovering more with new interaction plans.
+
+---
+
 ## 📂 Repo Structure
 
 ```bash

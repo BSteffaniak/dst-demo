@@ -79,19 +79,26 @@ impl InteractionPlan<Interaction> for FaultInjectionInteractionPlan {
         let rng: &dst_demo_simulator_harness::random::Rng = &RNG;
         let mut rng: dst_demo_simulator_harness::random::Rng = rng.clone();
         for i in 1..=count {
-            let interaction_type = InteractionType::iter().choose(&mut rng).unwrap();
-            log::trace!(
-                "gen_interactions: generating interaction {i}/{count} interaction_type={interaction_type:?}"
-            );
-            match interaction_type {
-                InteractionType::Sleep => {
-                    #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-                    self.add_interaction(Interaction::Sleep(Duration::from_millis(
-                        non_uniform_distribute_f64!(rng.gen_range(0..100_000), 0.1) as u64,
-                    )));
-                }
-                InteractionType::Bounce => {
-                    self.add_interaction(Interaction::Bounce(HOST.to_string()));
+            loop {
+                let interaction_type = InteractionType::iter().choose(&mut rng).unwrap();
+                log::trace!(
+                    "gen_interactions: generating interaction {i}/{count} interaction_type={interaction_type:?}"
+                );
+                match interaction_type {
+                    InteractionType::Sleep => {
+                        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+                        self.add_interaction(Interaction::Sleep(Duration::from_millis(
+                            non_uniform_distribute_f64!(rng.gen_range(0..100_000), 0.1) as u64,
+                        )));
+                        break;
+                    }
+                    InteractionType::Bounce => {
+                        if rng.gen_bool(0.9) {
+                            continue;
+                        }
+                        self.add_interaction(Interaction::Bounce(HOST.to_string()));
+                        break;
+                    }
                 }
             }
         }

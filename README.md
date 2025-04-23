@@ -25,6 +25,78 @@ This repository demonstrates **Deterministic Simulation Testing (DST)**. It's a 
 
 ---
 
+## 🧑‍💻 Usage Instructions
+
+This project includes three main executables:
+
+- 🏦 A **real TCP server** (`dst_demo_server`)
+- 🎛 A **real TCP client** for manual interaction: (`dst_demo_tcp_client`)
+- 🧪 A **deterministic simulator** (`dst_demo_server_simulator`)
+
+### 🏁 Running the Real Server
+
+To run the actual bank application (not in simulation), use:
+
+```bash
+cargo run --release -p dst_demo_server
+```
+
+By default, this starts the TCP server on `0.0.0.0:3000`.
+
+#### 🔧 Optional Environment Variables
+
+- `PORT` – override the default port (`3000`)
+- `ADDR` – override the address to bind to (default: `0.0.0.0`)
+- `RUST_LOG` – control log verbosity (`trace`, `debug`, `info`, `warn`, `error`)
+
+##### Example:
+
+```bash
+PORT=4000 RUST_LOG=info cargo run --release -p dst_demo_server
+```
+
+### 🎛 Running the TCP Client
+
+You can use the provided client to manually interact with the running bank server:
+
+```bash
+cargo run --release -p dst_demo_tcp_client 127.0.0.1:3000
+```
+
+Replace `127.0.0.1:3000` with the appropriate server address if needed.
+
+Once connected, you can issue the following commands:
+
+- `CREATE_TRANSACTION` - Prompts for the amount (decimal) and returns the new transaction details.
+- `VOID_TRANSACTION` - Prompts for the transaction ID (integer) and returns the updated voided transaction.
+- `GET_TRANSACTION` - Prompts for the transaction ID (integer) and returns its details, if it exists.
+- `LIST_TRANSACTIONS` - Lists all transactions currently stored in the bank.
+
+### 🧪 Running the Simulator
+
+To run the deterministic simulation using turmoil:
+
+```bash
+cargo run --release -p dst_demo_server_simulator
+```
+
+This will execute a series of predefined interaction plans in a fully simulated environment.
+
+#### 🔧 Optional Environment Variables
+
+- `SIMULATOR_SEED` – set a specific seed to make a test run reproducible
+- `SIMULATOR_DURATION` – max time (in simulated seconds) before success is assumed
+- `SIMULATOR_STEP_MULTIPLIER` – control how fast simulated time moves (higher = faster)
+
+##### Example:
+
+```bash
+SIMULATOR_SEED=123 SIMULATOR_DURATION=60 SIMULATOR_STEP_MULTIPLIER=10 \
+  cargo run --release -p dst_demo_server_simulator
+```
+
+---
+
 ## 🧪 Why Deterministic Testing?
 
 Real-world distributed systems can be hard to test due to:

@@ -2,9 +2,6 @@ pub trait InteractionPlan<T>
 where
     Self: Sized,
 {
-    #[must_use]
-    fn new() -> Self;
-
     fn step(&mut self) -> Option<&T>;
 
     #[must_use]

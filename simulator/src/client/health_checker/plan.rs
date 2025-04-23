@@ -55,11 +55,6 @@ impl HealthCheckInteractionPlan {
 }
 
 impl InteractionPlan<Interaction> for HealthCheckInteractionPlan {
-    #[must_use]
-    fn new() -> Self {
-        Self::new()
-    }
-
     fn step(&mut self) -> Option<&Interaction> {
         #[allow(clippy::cast_possible_truncation)]
         if let Some(item) = self.plan.get(self.step as usize) {

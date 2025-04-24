@@ -308,6 +308,8 @@ dependencies = [
  "log",
  "pretty_env_logger",
  "rust_decimal",
+ "serde",
+ "serde_json",
  "strum",
  "thiserror",
  "tokio",

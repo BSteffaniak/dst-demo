@@ -1,14 +1,25 @@
 #![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
-use std::time::SystemTime;
+use std::{
+    io::{Read as _, Write},
+    path::PathBuf,
+    time::SystemTime,
+};
 
+use dst_demo_fs::sync::{File, OpenOptions};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 
 pub type TransactionId = i32;
 pub type CreateTime = i32;
 
 #[derive(Debug, thiserror::Error)]
-pub enum Error {}
+pub enum Error {
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
+}
 
 pub trait Bank: Send + Sync {
     /// # Errors
@@ -32,7 +43,7 @@ pub trait Bank: Send + Sync {
     fn void_transaction(&mut self, id: TransactionId) -> Result<Option<&Transaction>, Error>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub id: TransactionId,
     pub amount: Decimal,
@@ -40,23 +51,36 @@ pub struct Transaction {
 }
 
 pub struct LocalBank {
+    file: File,
     transactions: Vec<Transaction>,
     current_id: TransactionId,
 }
 
-impl Default for LocalBank {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl LocalBank {
-    #[must_use]
-    pub const fn new() -> Self {
-        Self {
-            transactions: vec![],
-            current_id: 1,
-        }
+    /// # Errors
+    ///
+    /// * If there is IO error reading existing transactions from the filesystem
+    pub fn new() -> Result<Self, std::io::Error> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("transactions.db"))?;
+
+        let mut transactions = String::new();
+        file.read_to_string(&mut transactions)?;
+        let transactions = transactions
+            .split('\n')
+            .filter(|x| !x.is_empty())
+            .map(serde_json::from_str)
+            .collect::<Result<Vec<Transaction>, _>>()?;
+
+        Ok(Self {
+            file,
+            current_id: transactions.last().map_or(1, |x| x.id + 1),
+            transactions,
+        })
     }
 }
 
@@ -83,9 +107,18 @@ impl Bank for LocalBank {
             created_at: seconds_since_epoch as CreateTime,
         };
         assert!(
+            self.transactions
+                .last()
+                .is_none_or(|x| transaction.id > x.id),
+            "id went backwards from last_transaction.id={} to {}",
+            self.transactions.last().unwrap().id,
+            transaction.id,
+        );
+        assert!(
             self.current_id > transaction.id,
-            "Invalid id={}",
-            transaction.id
+            "id went backwards from current_id={} to {}",
+            self.current_id,
+            transaction.id,
         );
         assert!(
             transaction.created_at > 0,
@@ -97,6 +130,11 @@ impl Bank for LocalBank {
             "Time went backwards {now:?} seconds_since_epoch={seconds_since_epoch} created_at={}",
             transaction.created_at,
         );
+
+        let mut serialized = serde_json::to_string(&transaction)?;
+        serialized.push('\n');
+        self.file.write_all(serialized.as_bytes())?;
+
         self.transactions.push(transaction);
         Ok(self.transactions.last().unwrap())
     }

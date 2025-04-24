@@ -11,6 +11,9 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
+dst_demo_fs = { version = "0.1.0", path = "../fs", default-features = false, features = [
+    "std",
+] }
 dst_demo_random = { version = "0.1.0", path = "../random", default-features = false, features = [
     "rand",
 ] }
@@ -24,7 +27,9 @@ dst_demo_time = { version = "0.1.0", path = "../time", default-features = false,
 ctrlc = { workspace = true }
 log = { workspace = true }
 pretty_env_logger = { workspace = true }
-rust_decimal = { workspace = true, features = ["std"] }
+rust_decimal = { workspace = true, features = ["serde", "std"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = [

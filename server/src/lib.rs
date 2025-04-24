@@ -72,7 +72,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let listener = TcpListener::bind(&addr).await?;
     log::info!("Server listening on {addr}");
 
-    let mut bank = LocalBank::new();
+    let mut bank = LocalBank::new()?;
 
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {

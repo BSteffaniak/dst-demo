@@ -37,6 +37,7 @@ impl InteractionPlanContext {
         self.get_random_existing_transaction(rng).map(|x| x.id)
     }
 
+    #[allow(unused)]
     fn clear(&mut self) {
         self.transactions.clear();
         self.curr_id = 1;
@@ -93,9 +94,6 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
     ///
     /// * If the `RNG` `Mutex` fails to lock
     fn gen_interactions(&mut self, count: u64) {
-        self.context.clear();
-        self.plan.clear();
-        self.step = 0;
         let len = self.plan.len() as u64;
 
         let rng: &dst_demo_simulator_harness::random::Rng = &RNG;

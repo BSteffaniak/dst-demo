@@ -73,8 +73,6 @@ impl InteractionPlan<Interaction> for FaultInjectionInteractionPlan {
     ///
     /// * If the `RNG` `Mutex` fails to lock
     fn gen_interactions(&mut self, count: u64) {
-        self.plan.clear();
-        self.step = 0;
         let len = self.plan.len() as u64;
 
         let rng: &dst_demo_simulator_harness::random::Rng = &RNG;

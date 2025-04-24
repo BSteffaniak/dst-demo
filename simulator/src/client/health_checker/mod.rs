@@ -63,16 +63,16 @@ async fn health_check(host: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 async fn assert_health(host: &str) -> Result<(), Box<dyn std::error::Error>> {
     let response = loop {
-        log::trace!("[Client] Connecting to server...");
+        log::trace!("[Health Client] Connecting to server...");
         let mut stream = match TcpStream::connect(host).await {
             Ok(stream) => stream,
             Err(e) => {
-                log::error!("[Client] Failed to connect to server: {e:?}");
                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                log::debug!("[Health Client] Failed to connect to server: {e:?}");
                 continue;
             }
         };
-        log::trace!("[Client] Connected!");
+        log::trace!("[Health Client] Connected!");
         match stream.write_all(b"HEALTH\0").await {
             Ok(resp) => resp,
             Err(e) => {

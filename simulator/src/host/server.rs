@@ -3,9 +3,6 @@ use dst_demo_simulator_harness::turmoil::Sim;
 pub const HOST: &str = "dst_demo_server";
 pub const PORT: u16 = 1234;
 
-/// # Panics
-///
-/// * If fails to acquire the `CANCELLATION_TOKEN` `Mutex` lock
 pub fn start(sim: &mut Sim<'_>) {
     let host = "0.0.0.0";
     let addr = format!("{host}:{PORT}");

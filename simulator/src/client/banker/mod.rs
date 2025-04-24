@@ -1,9 +1,9 @@
 use dst_demo_server::ServerAction;
 use dst_demo_simulator_harness::{
+    CancellableSim,
     plan::InteractionPlan as _,
     time::simulator::STEP_MULTIPLIER,
     turmoil::{Sim, net::TcpStream},
-    utils::SIMULATOR_CANCELLATION_TOKEN,
 };
 use plan::{BankerInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt as _;
@@ -22,41 +22,35 @@ pub fn start(sim: &mut Sim<'_>) {
 
     let mut plan = BankerInteractionPlan::new().with_gen_interactions(1000);
 
-    sim.client("Banker", async move {
-        SIMULATOR_CANCELLATION_TOKEN
-            .run_until_cancelled(async move {
-                loop {
-                    while let Some(interaction) = plan.step() {
-                        static TIMEOUT: u64 = 10;
+    sim.client_until_cancelled("Banker", async move {
+        loop {
+            while let Some(interaction) = plan.step() {
+                static TIMEOUT: u64 = 10;
 
-                        #[allow(clippy::cast_possible_truncation)]
-                        let interaction_timeout = TIMEOUT * 1000
-                            + if let Interaction::Sleep(duration) = &interaction {
-                                duration.as_millis() as u64
-                            } else {
-                                0
-                            } + *STEP_MULTIPLIER * 1000;
+                #[allow(clippy::cast_possible_truncation)]
+                let interaction_timeout = TIMEOUT * 1000
+                    + if let Interaction::Sleep(duration) = &interaction {
+                        duration.as_millis() as u64
+                    } else {
+                        0
+                    } + *STEP_MULTIPLIER * 1000;
 
-                        tokio::select! {
-                            resp = perform_interaction(&addr, interaction) => {
-                                resp?;
-                                tokio::time::sleep(std::time::Duration::from_secs(*STEP_MULTIPLIER * 60)).await;
-                            }
-                            () = tokio::time::sleep(std::time::Duration::from_millis(interaction_timeout)) => {
-                                return Err(Box::new(std::io::Error::new(
-                                    std::io::ErrorKind::TimedOut,
-                                    format!("Failed to get interaction response within {interaction_timeout}ms")
-                                )) as Box<dyn std::error::Error>);
-                            }
-                        }
+                tokio::select! {
+                    resp = perform_interaction(&addr, interaction) => {
+                        resp?;
+                        tokio::time::sleep(std::time::Duration::from_secs(*STEP_MULTIPLIER * 60)).await;
                     }
-
-                    plan.gen_interactions(1000);
+                    () = tokio::time::sleep(std::time::Duration::from_millis(interaction_timeout)) => {
+                        return Err(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            format!("Failed to get interaction response within {interaction_timeout}ms")
+                        )) as Box<dyn std::error::Error>);
+                    }
                 }
-            })
-            .await
-            .transpose()
-            .map(|x| x.unwrap_or(()))
+            }
+
+            plan.gen_interactions(1000);
+        }
     });
 }
 

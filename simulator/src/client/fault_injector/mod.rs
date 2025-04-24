@@ -1,6 +1,4 @@
-use dst_demo_simulator_harness::{
-    plan::InteractionPlan as _, turmoil::Sim, utils::SIMULATOR_CANCELLATION_TOKEN,
-};
+use dst_demo_simulator_harness::{CancellableSim, plan::InteractionPlan as _, turmoil::Sim};
 use plan::{FaultInjectionInteractionPlan, Interaction};
 
 pub mod plan;
@@ -12,20 +10,14 @@ pub fn start(sim: &mut Sim<'_>) {
 
     let mut plan = FaultInjectionInteractionPlan::new().with_gen_interactions(1000);
 
-    sim.client("FaultInjector", async move {
-        SIMULATOR_CANCELLATION_TOKEN
-            .run_until_cancelled(async move {
-                loop {
-                    while let Some(interaction) = plan.step() {
-                        perform_interaction(interaction).await?;
-                    }
+    sim.client_until_cancelled("FaultInjector", async move {
+        loop {
+            while let Some(interaction) = plan.step() {
+                perform_interaction(interaction).await?;
+            }
 
-                    plan.gen_interactions(1000);
-                }
-            })
-            .await
-            .transpose()
-            .map(|x| x.unwrap_or(()))
+            plan.gen_interactions(1000);
+        }
     });
 }
 

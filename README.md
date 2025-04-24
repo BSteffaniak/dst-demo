@@ -124,12 +124,16 @@ This will execute a series of predefined interaction plans in a fully simulated 
 - `SIMULATOR_SEED` – set a specific seed to make a test run reproducible
 - `SIMULATOR_DURATION` – max time (in simulated seconds) before success is assumed
 - `SIMULATOR_STEP_MULTIPLIER` – control how fast simulated time moves (higher = faster)
+- `SIMULATOR_EPOCH_OFFSET` – control the initial time offset in millis
 
 ##### Example:
 
 ```bash
-SIMULATOR_SEED=123 SIMULATOR_DURATION=60 SIMULATOR_STEP_MULTIPLIER=10 \
-  cargo run --release -p dst_demo_server_simulator/
+SIMULATOR_SEED=123 \
+    SIMULATOR_DURATION=60 \
+    SIMULATOR_STEP_MULTIPLIER=10 \
+    SIMULATOR_EPOCH_OFFSET=1745529640464 \
+    cargo run --release -p dst_demo_server_simulator
 ```
 
 ---

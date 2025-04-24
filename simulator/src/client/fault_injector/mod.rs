@@ -1,5 +1,5 @@
 use dst_demo_simulator_harness::{
-    SIMULATOR_CANCELLATION_TOKEN, plan::InteractionPlan as _, turmoil::Sim,
+    plan::InteractionPlan as _, turmoil::Sim, utils::SIMULATOR_CANCELLATION_TOKEN,
 };
 use plan::{FaultInjectionInteractionPlan, Interaction};
 

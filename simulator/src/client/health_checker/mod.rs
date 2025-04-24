@@ -1,10 +1,10 @@
 use std::sync::LazyLock;
 
 use dst_demo_simulator_harness::{
-    SIMULATOR_CANCELLATION_TOKEN,
     plan::InteractionPlan as _,
     time::simulator::STEP_MULTIPLIER,
     turmoil::{Sim, net::TcpStream},
+    utils::SIMULATOR_CANCELLATION_TOKEN,
 };
 use plan::{HealthCheckInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt;

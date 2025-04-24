@@ -1,9 +1,9 @@
 use dst_demo_server::ServerAction;
 use dst_demo_simulator_harness::{
-    SIMULATOR_CANCELLATION_TOKEN,
     plan::InteractionPlan as _,
     time::simulator::STEP_MULTIPLIER,
     turmoil::{Sim, net::TcpStream},
+    utils::SIMULATOR_CANCELLATION_TOKEN,
 };
 use plan::{BankerInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt as _;

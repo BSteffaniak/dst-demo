@@ -2,11 +2,16 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
-use std::{any::Any, panic::AssertUnwindSafe, sync::LazyLock, time::SystemTime};
+use std::{
+    any::Any,
+    panic::AssertUnwindSafe,
+    time::{Duration, SystemTime},
+};
 
-use dst_demo_simulator_utils::{SEED, STEP};
+use dst_demo_simulator_utils::{
+    SEED, SIMULATOR_CANCELLATION_TOKEN, STEP, cancel_simulation, duration,
+};
 use formatting::TimeFormat as _;
-use tokio_util::sync::CancellationToken;
 use turmoil::Sim;
 
 #[cfg(feature = "random")]
@@ -22,9 +27,6 @@ pub use turmoil;
 
 mod formatting;
 pub mod plan;
-
-pub static SIMULATOR_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
-    LazyLock::new(CancellationToken::new);
 
 fn run_info() -> String {
     #[cfg(feature = "time")]
@@ -70,18 +72,27 @@ fn run_info_end(successful: bool, real_time_millis: u128, sim_time_millis: u128)
 ///   any panic happens, it will be wrapped into an error on the outer `Result`
 /// * If the `Sim` `step` returns an error, we return that in an Ok(Err(e))
 pub fn run_simulation(
-    sim: &mut Sim<'_>,
-    duration_secs: u64,
-    on_step: impl Fn(&mut Sim<'_>),
+    bootstrap: &impl SimBootstrap,
 ) -> Result<Result<(), Box<dyn std::error::Error>>, Box<dyn Any + Send>> {
-    ctrlc::set_handler(move || SIMULATOR_CANCELLATION_TOKEN.cancel())
-        .expect("Error setting Ctrl-C handler");
+    ctrlc::set_handler(cancel_simulation).expect("Error setting Ctrl-C handler");
+
+    let duration_secs = duration();
 
     STEP.store(1, std::sync::atomic::Ordering::SeqCst);
 
     log::info!("Server simulator starting\n{}", run_info());
 
+    bootstrap.init();
+
+    let builder = bootstrap.build_sim(sim_builder());
+    #[cfg(feature = "random")]
+    let mut sim = builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
+    #[cfg(not(feature = "random"))]
+    let mut sim = builder.build();
+
     let start = SystemTime::now();
+
+    bootstrap.on_start(&mut sim);
 
     let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let print_step = |sim: &Sim<'_>, step| {
@@ -108,15 +119,15 @@ pub fn run_simulation(
             if duration_secs < u64::MAX
                 && SystemTime::now().duration_since(start).unwrap().as_secs() >= duration_secs
             {
-                print_step(sim, step);
+                print_step(&sim, step);
                 break;
             }
 
             if step % 1000 == 0 {
-                print_step(sim, step);
+                print_step(&sim, step);
             }
 
-            on_step(sim);
+            bootstrap.on_step(&mut sim);
 
             match sim.step() {
                 Ok(..) => {}
@@ -133,11 +144,13 @@ pub fn run_simulation(
         }
 
         if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
-            SIMULATOR_CANCELLATION_TOKEN.cancel();
+            cancel_simulation();
         }
 
         Ok(())
     }));
+
+    bootstrap.on_end(&mut sim);
 
     let end = SystemTime::now();
     let real_time_millis = end.duration_since(start).unwrap().as_millis();
@@ -153,4 +166,31 @@ pub fn run_simulation(
     );
 
     resp
+}
+fn sim_builder() -> turmoil::Builder {
+    let mut builder = turmoil::Builder::new();
+
+    builder.simulation_duration(Duration::MAX);
+
+    #[cfg(feature = "time")]
+    builder.tick_duration(Duration::from_millis(
+        *dst_demo_time::simulator::STEP_MULTIPLIER,
+    ));
+
+    builder
+}
+
+pub trait SimBootstrap {
+    #[must_use]
+    fn build_sim(&self, builder: turmoil::Builder) -> turmoil::Builder {
+        builder
+    }
+
+    fn init(&self) {}
+
+    fn on_start(&self, #[allow(unused)] sim: &mut Sim<'_>) {}
+
+    fn on_step(&self, #[allow(unused)] sim: &mut Sim<'_>) {}
+
+    fn on_end(&self, #[allow(unused)] sim: &mut Sim<'_>) {}
 }

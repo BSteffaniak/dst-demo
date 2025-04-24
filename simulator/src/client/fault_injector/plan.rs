@@ -1,13 +1,14 @@
 use std::time::Duration;
 
 use dst_demo_simulator_harness::{
+    plan::InteractionPlan,
     rand::seq::IteratorRandom,
     random::{RNG, non_uniform_distribute_f64},
     time::simulator::STEP_MULTIPLIER,
 };
 use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
-use crate::{host::server::HOST, plan::InteractionPlan};
+use crate::host::server::HOST;
 
 pub struct InteractionPlanContext {}
 

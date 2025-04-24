@@ -1,6 +1,7 @@
 use dst_demo_server::ServerAction;
 use dst_demo_simulator_harness::{
     SIMULATOR_CANCELLATION_TOKEN,
+    plan::InteractionPlan as _,
     time::simulator::STEP_MULTIPLIER,
     turmoil::{Sim, net::TcpStream},
 };
@@ -9,10 +10,7 @@ use tokio::io::AsyncWriteExt as _;
 
 mod plan;
 
-use crate::{
-    host::server::{HOST, PORT},
-    plan::InteractionPlan as _,
-};
+use crate::host::server::{HOST, PORT};
 
 /// # Panics
 ///

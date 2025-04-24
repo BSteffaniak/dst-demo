@@ -1,11 +1,9 @@
 use std::time::Duration;
 
+use dst_demo_simulator_harness::plan::InteractionPlan;
 use strum::{EnumDiscriminants, EnumIter};
 
-use crate::{
-    host::server::{HOST, PORT},
-    plan::InteractionPlan,
-};
+use crate::host::server::{HOST, PORT};
 
 pub struct InteractionPlanContext {}
 

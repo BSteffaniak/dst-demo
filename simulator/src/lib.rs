@@ -15,7 +15,6 @@ use tokio::io::AsyncReadExt;
 pub mod client;
 pub mod host;
 pub mod http;
-pub mod plan;
 
 static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(VecDeque::new())));

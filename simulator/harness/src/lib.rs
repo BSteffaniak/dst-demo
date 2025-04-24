@@ -21,6 +21,7 @@ pub use rand;
 pub use turmoil;
 
 mod formatting;
+pub mod plan;
 
 pub static SIMULATOR_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
     LazyLock::new(CancellationToken::new);

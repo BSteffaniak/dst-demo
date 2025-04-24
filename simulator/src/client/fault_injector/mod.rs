@@ -3,7 +3,10 @@ use plan::{FaultInjectionInteractionPlan, Interaction};
 
 pub mod plan;
 
-use crate::{SIMULATOR_CANCELLATION_TOKEN, plan::InteractionPlan as _, queue_bounce};
+use crate::{
+    SIMULATOR_CANCELLATION_TOKEN, host::server::CANCELLATION_TOKEN, plan::InteractionPlan as _,
+    queue_bounce,
+};
 
 /// # Panics
 ///
@@ -39,7 +42,10 @@ async fn perform_interaction(interaction: &Interaction) -> Result<(), Box<dyn st
             tokio::time::sleep(*duration).await;
         }
         Interaction::Bounce(host) => {
-            log::info!("perform_interaction: queueing bouncing '{host}'");
+            log::debug!("perform_interaction: queueing bouncing '{host}'");
+            if let Some(token) = { CANCELLATION_TOKEN.lock().unwrap().clone() } {
+                token.cancel();
+            }
             queue_bounce(host);
         }
     }

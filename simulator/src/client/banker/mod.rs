@@ -1,5 +1,8 @@
 use dst_demo_server::ServerAction;
-use dst_demo_simulator_harness::turmoil::{Sim, net::TcpStream};
+use dst_demo_simulator_harness::{
+    time::simulator::STEP_MULTIPLIER,
+    turmoil::{Sim, net::TcpStream},
+};
 use plan::{BankerInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt as _;
 
@@ -29,21 +32,22 @@ pub fn start(sim: &mut Sim<'_>) {
                         static TIMEOUT: u64 = 10;
 
                         #[allow(clippy::cast_possible_truncation)]
-                        let interaction_timeout = TIMEOUT
+                        let interaction_timeout = TIMEOUT * 1000
                             + if let Interaction::Sleep(duration) = &interaction {
                                 duration.as_millis() as u64
                             } else {
                                 0
-                            };
+                            } + *STEP_MULTIPLIER * 1000;
 
                         tokio::select! {
                             resp = perform_interaction(&addr, interaction) => {
                                 resp?;
+                                tokio::time::sleep(std::time::Duration::from_secs(*STEP_MULTIPLIER * 60)).await;
                             }
-                            () = tokio::time::sleep(std::time::Duration::from_secs(interaction_timeout)) => {
+                            () = tokio::time::sleep(std::time::Duration::from_millis(interaction_timeout)) => {
                                 return Err(Box::new(std::io::Error::new(
                                     std::io::ErrorKind::TimedOut,
-                                    format!("Failed to get interaction response within {interaction_timeout} seconds")
+                                    format!("Failed to get interaction response within {interaction_timeout}ms")
                                 )) as Box<dyn std::error::Error>);
                             }
                         }
@@ -99,8 +103,8 @@ async fn perform_interaction(
         let mut stream = match TcpStream::connect(addr).await {
             Ok(stream) => stream,
             Err(e) => {
-                log::error!("[Banker Client] Failed to connect to server: {e:?}");
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                log::debug!("[Banker Client] Failed to connect to server: {e:?}");
+                tokio::time::sleep(std::time::Duration::from_millis(*STEP_MULTIPLIER)).await;
                 continue;
             }
         };

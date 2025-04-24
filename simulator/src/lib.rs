@@ -54,7 +54,7 @@ pub fn handle_actions(sim: &mut Sim<'_>) {
     for action in actions {
         match action {
             Action::Bounce(host) => {
-                log::info!("bouncing '{host}'");
+                log::debug!("bouncing '{host}'");
                 sim.bounce(host);
             }
         }

@@ -1,4 +1,9 @@
-use dst_demo_simulator_harness::turmoil::Sim;
+use std::sync::LazyLock;
+
+use dst_demo_simulator_harness::{
+    time::simulator::STEP_MULTIPLIER,
+    turmoil::{Sim, net::TcpStream},
+};
 use plan::{HealthCheckInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt;
 
@@ -15,6 +20,8 @@ pub fn start(sim: &mut Sim<'_>) {
                 loop {
                     while let Some(interaction) = plan.step() {
                         perform_interaction(interaction).await?;
+                        tokio::time::sleep(std::time::Duration::from_secs(*STEP_MULTIPLIER * 60))
+                            .await;
                     }
 
                     plan.gen_interactions(1000);
@@ -35,7 +42,7 @@ async fn perform_interaction(interaction: &Interaction) -> Result<(), Box<dyn st
             tokio::time::sleep(*duration).await;
         }
         Interaction::HealthCheck(host) => {
-            log::info!("perform_interaction: checking health for host={host}");
+            log::debug!("perform_interaction: checking health for host={host}");
             health_check(host).await?;
         }
     }
@@ -44,16 +51,16 @@ async fn perform_interaction(interaction: &Interaction) -> Result<(), Box<dyn st
 }
 
 async fn health_check(host: &str) -> Result<(), Box<dyn std::error::Error>> {
-    static TIMEOUT: u64 = 10;
+    static TIMEOUT: LazyLock<u64> = LazyLock::new(|| 10 * *STEP_MULTIPLIER);
 
     tokio::select! {
         resp = assert_health(host) => {
             resp?;
         }
-        () = tokio::time::sleep(std::time::Duration::from_secs(TIMEOUT)) => {
+        () = tokio::time::sleep(std::time::Duration::from_secs(*TIMEOUT)) => {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
-                format!("Failed to get healthy response within {TIMEOUT} seconds")
+                format!("Failed to get healthy response within {} seconds", *TIMEOUT)
             )) as Box<dyn std::error::Error>);
         }
     }
@@ -67,8 +74,8 @@ async fn assert_health(host: &str) -> Result<(), Box<dyn std::error::Error>> {
         let mut stream = match TcpStream::connect(host).await {
             Ok(stream) => stream,
             Err(e) => {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
                 log::debug!("[Health Client] Failed to connect to server: {e:?}");
+                tokio::time::sleep(std::time::Duration::from_millis(*STEP_MULTIPLIER)).await;
                 continue;
             }
         };

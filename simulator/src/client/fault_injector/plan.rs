@@ -3,6 +3,7 @@ use std::time::Duration;
 use dst_demo_simulator_harness::{
     rand::seq::IteratorRandom,
     random::{RNG, non_uniform_distribute_f64},
+    time::simulator::STEP_MULTIPLIER,
 };
 use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
@@ -89,12 +90,13 @@ impl InteractionPlan<Interaction> for FaultInjectionInteractionPlan {
                     InteractionType::Sleep => {
                         #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
                         self.add_interaction(Interaction::Sleep(Duration::from_millis(
-                            non_uniform_distribute_f64!(rng.gen_range(0..100_000), 0.1) as u64,
+                            non_uniform_distribute_f64!(rng.gen_range(0..100_000), 0.1) as u64
+                                * *STEP_MULTIPLIER,
                         )));
                         break;
                     }
                     InteractionType::Bounce => {
-                        if rng.gen_bool(0.9) {
+                        if rng.gen_bool(0.99) {
                             continue;
                         }
                         self.add_interaction(Interaction::Bounce(HOST.to_string()));

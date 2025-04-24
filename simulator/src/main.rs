@@ -2,7 +2,10 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
-use std::time::Duration;
+use std::{
+    panic::AssertUnwindSafe,
+    time::{Duration, SystemTime},
+};
 
 use dst_demo_server_simulator::{
     SIMULATOR_CANCELLATION_TOKEN, client, formatting::TimeFormat as _, handle_actions, host,
@@ -10,7 +13,7 @@ use dst_demo_server_simulator::{
 use dst_demo_simulator_harness::{
     random::RNG,
     time::simulator::{EPOCH_OFFSET, STEP_MULTIPLIER},
-    turmoil::{self},
+    turmoil::{self, Sim},
     utils::{SEED, STEP},
 };
 
@@ -27,25 +30,17 @@ fn run_info() -> String {
 }
 
 #[allow(clippy::cast_precision_loss)]
-fn run_info_end(
-    successful: bool,
-    real_time_millis: u128,
-    system_time_millis: u128,
-    step: u32,
-) -> String {
+fn run_info_end(successful: bool, real_time_millis: u128, sim_time_millis: u128) -> String {
     format!(
         "\
         {run_info}\n\
         successful={successful}\n\
         real_time_elapsed={real_time}\n\
-        simulated_system_time_elapsed={simulated_system_time} ({simulated_system_time_x:.2}x)\n\
         simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)",
         run_info = run_info(),
         real_time = real_time_millis.into_formatted(),
-        simulated_system_time = system_time_millis.into_formatted(),
-        simulated_system_time_x = system_time_millis as f64 / real_time_millis as f64,
-        simulated_time = step.into_formatted(),
-        simulated_time_x = f64::from(step) / real_time_millis as f64,
+        simulated_time = sim_time_millis.into_formatted(),
+        simulated_time_x = sim_time_millis as f64 / real_time_millis as f64,
     )
 }
 
@@ -65,59 +60,82 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .map_or(u64::MAX, |x| x.parse::<u64>().unwrap());
 
-    let start_system = dst_demo_simulator_harness::time::now();
-    let start = std::time::SystemTime::now();
+    let start = SystemTime::now();
     STEP.store(1, std::sync::atomic::Ordering::SeqCst);
 
-    let resp = std::panic::catch_unwind(|| run_simulation(duration_secs));
-    let step = STEP.load(std::sync::atomic::Ordering::SeqCst);
+    let mut sim = turmoil::Builder::new()
+        .simulation_duration(Duration::MAX)
+        .tick_duration(duration_from_step_multiplier())
+        .build_with_rng(Box::new(RNG.clone()));
 
-    let end_system = dst_demo_simulator_harness::time::now();
-    let system_time_millis = end_system.duration_since(start_system).unwrap().as_millis();
-    let end = std::time::SystemTime::now();
+    let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        run_simulation(&mut sim, duration_secs, start)
+    }));
+
+    let end = SystemTime::now();
     let real_time_millis = end.duration_since(start).unwrap().as_millis();
+    let sim_time_millis = sim.elapsed().as_millis();
 
     log::info!(
         "Server simulator finished\n{}",
         run_info_end(
             resp.as_ref().is_ok_and(Result::is_ok),
             real_time_millis,
-            system_time_millis,
-            step,
+            sim_time_millis,
         )
     );
 
     resp.unwrap()
 }
 
-fn run_simulation(duration_secs: u64) -> Result<(), Box<dyn std::error::Error>> {
-    let mut sim = turmoil::Builder::new()
-        .simulation_duration(Duration::from_secs(duration_secs))
-        .build_with_rng(Box::new(RNG.clone()));
+fn duration_from_step_multiplier() -> Duration {
+    Duration::from_millis(*STEP_MULTIPLIER)
+}
 
-    host::server::start(&mut sim);
+fn run_simulation(
+    sim: &mut Sim<'_>,
+    duration_secs: u64,
+    start: SystemTime,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let print_step = |sim: &Sim<'_>, step| {
+        #[allow(clippy::cast_precision_loss)]
+        if duration_secs < u64::MAX {
+            log::info!(
+                "step {step} ({}) ({:.1}%)",
+                sim.elapsed().as_millis().into_formatted(),
+                SystemTime::now().duration_since(start).unwrap().as_millis() as f64
+                    / (duration_secs as f64 * 1000.0)
+                    * 100.0,
+            );
+        } else {
+            log::info!(
+                "step {step} ({})",
+                sim.elapsed().as_millis().into_formatted()
+            );
+        }
+    };
 
-    client::health_checker::start(&mut sim);
-    client::fault_injector::start(&mut sim);
-    client::banker::start(&mut sim);
+    host::server::start(sim);
+
+    client::health_checker::start(sim);
+    client::fault_injector::start(sim);
+    client::banker::start(sim);
 
     while !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
         let step = STEP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-        if step % 1000 == 0 {
-            #[allow(clippy::cast_precision_loss)]
-            if duration_secs < u64::MAX {
-                log::info!(
-                    "step {step} ({}) ({:.1}%)",
-                    sim.elapsed().as_millis().into_formatted(),
-                    (f64::from(step) / duration_secs as f64 / 10.0 * (*STEP_MULTIPLIER as f64)),
-                );
-            } else {
-                log::info!("step {step} ({})", sim.elapsed().as_millis().into_formatted());
-            }
+        if duration_secs < u64::MAX
+            && SystemTime::now().duration_since(start).unwrap().as_secs() >= duration_secs
+        {
+            print_step(sim, step);
+            break;
         }
 
-        handle_actions(&mut sim);
+        if step % 1000 == 0 {
+            print_step(sim, step);
+        }
+
+        handle_actions(sim);
 
         match sim.step() {
             Ok(..) => {}

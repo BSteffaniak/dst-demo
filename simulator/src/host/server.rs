@@ -25,10 +25,9 @@ pub fn start(sim: &mut Sim<'_>) {
 
         let addr = addr.clone();
         async move {
-            log::info!("starting 'dst_demo' server");
+            log::debug!("starting 'dst_demo' server");
             dst_demo_server::run(&addr).await?;
-
-            log::info!("dst_demo server finished");
+            log::debug!("dst_demo server finished");
 
             Ok(())
         }

@@ -108,11 +108,12 @@ fn run_simulation(duration_secs: u64) -> Result<(), Box<dyn std::error::Error>> 
             #[allow(clippy::cast_precision_loss)]
             if duration_secs < u64::MAX {
                 log::info!(
-                    "step {step} ({:.1}%)",
-                    (f64::from(step) / duration_secs as f64 / 10.0)
+                    "step {step} ({}) ({:.1}%)",
+                    sim.elapsed().as_millis().into_formatted(),
+                    (f64::from(step) / duration_secs as f64 / 10.0 * (*STEP_MULTIPLIER as f64)),
                 );
             } else {
-                log::info!("step {step}");
+                log::info!("step {step} ({})", sim.elapsed().as_millis().into_formatted());
             }
         }
 

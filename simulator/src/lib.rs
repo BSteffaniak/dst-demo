@@ -15,6 +15,7 @@ use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
 pub mod client;
+pub mod formatting;
 pub mod host;
 pub mod http;
 pub mod plan;

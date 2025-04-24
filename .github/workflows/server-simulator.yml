@@ -84,7 +84,7 @@ jobs:
                   RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}
               run: |
                   while read -r feature; do \
-                      ${{ matrix.package.env }} cargo run -p dst_demo_server_simulator ${{ runner.debug && '-vv' }} \
+                      ${{ matrix.package.env }} cargo run --release -p dst_demo_server_simulator ${{ runner.debug && '-vv' }} \
                           --no-default-features \
                           --features="fail-on-warnings,$feature" ${{ matrix.package.cargo }}
                   done <<<"$(echo '${{ toJson(matrix.package.features) }}' | jq -r '.[]')"

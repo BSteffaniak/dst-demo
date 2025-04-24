@@ -9,7 +9,6 @@ use crate::{
     SIMULATOR_CANCELLATION_TOKEN,
     host::server::{HOST, PORT},
     plan::InteractionPlan as _,
-    try_connect,
 };
 
 /// # Panics
@@ -97,7 +96,7 @@ async fn perform_interaction(
 
     loop {
         log::trace!("[Banker Client] Connecting to server...");
-        let mut stream = match try_connect(addr, 1).await {
+        let mut stream = match TcpStream::connect(addr).await {
             Ok(stream) => stream,
             Err(e) => {
                 log::error!("[Banker Client] Failed to connect to server: {e:?}");

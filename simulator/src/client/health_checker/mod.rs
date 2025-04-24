@@ -4,7 +4,7 @@ use tokio::io::AsyncWriteExt;
 
 pub mod plan;
 
-use crate::{SIMULATOR_CANCELLATION_TOKEN, plan::InteractionPlan as _, read_message, try_connect};
+use crate::{SIMULATOR_CANCELLATION_TOKEN, plan::InteractionPlan as _, read_message};
 
 pub fn start(sim: &mut Sim<'_>) {
     let mut plan = HealthCheckInteractionPlan::new().with_gen_interactions(1000);
@@ -64,7 +64,7 @@ async fn health_check(host: &str) -> Result<(), Box<dyn std::error::Error>> {
 async fn assert_health(host: &str) -> Result<(), Box<dyn std::error::Error>> {
     let response = loop {
         log::trace!("[Client] Connecting to server...");
-        let mut stream = match try_connect(host, 1).await {
+        let mut stream = match TcpStream::connect(host).await {
             Ok(stream) => stream,
             Err(e) => {
                 log::error!("[Client] Failed to connect to server: {e:?}");

@@ -7,10 +7,9 @@ use std::{
     pin::Pin,
     string::FromUtf8Error,
     sync::{Arc, LazyLock, Mutex},
-    time::Duration,
 };
 
-use dst_demo_simulator_harness::turmoil::{self, Sim, net::TcpStream};
+use dst_demo_simulator_harness::turmoil::Sim;
 use tokio::io::AsyncReadExt;
 use tokio_util::sync::CancellationToken;
 
@@ -60,38 +59,6 @@ pub fn handle_actions(sim: &mut Sim<'_>) {
             }
         }
     }
-}
-
-/// # Errors
-///
-/// * If fails to connect to the TCP stream after `max_attempts` tries
-pub async fn try_connect(addr: &str, max_attempts: usize) -> Result<TcpStream, std::io::Error> {
-    let mut count = 0;
-    Ok(loop {
-        tokio::select! {
-            resp = turmoil::net::TcpStream::connect(addr) => {
-                match resp {
-                    Ok(x) => break x,
-                    Err(e) => {
-                        count += 1;
-
-                        log::debug!("failed to bind tcp: {e:?} (attempt {count}/{max_attempts})");
-
-                        if !matches!(e.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::ConnectionReset)
-                            || count >= max_attempts
-                        {
-                            return Err(e);
-                        }
-
-                        tokio::time::sleep(Duration::from_millis(5000)).await;
-                    }
-                }
-            }
-            () = tokio::time::sleep(Duration::from_millis(5000)) => {
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Timed out after 5000ms"));
-            }
-        }
-    })
 }
 
 /// # Errors

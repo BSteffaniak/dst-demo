@@ -1,12 +1,9 @@
-use dst_demo_simulator_harness::turmoil::Sim;
+use dst_demo_simulator_harness::{SIMULATOR_CANCELLATION_TOKEN, turmoil::Sim};
 use plan::{FaultInjectionInteractionPlan, Interaction};
 
 pub mod plan;
 
-use crate::{
-    SIMULATOR_CANCELLATION_TOKEN, host::server::CANCELLATION_TOKEN, plan::InteractionPlan as _,
-    queue_bounce,
-};
+use crate::{host::server::CANCELLATION_TOKEN, plan::InteractionPlan as _, queue_bounce};
 
 /// # Panics
 ///

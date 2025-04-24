@@ -11,16 +11,12 @@ use std::{
 
 use dst_demo_simulator_harness::turmoil::Sim;
 use tokio::io::AsyncReadExt;
-use tokio_util::sync::CancellationToken;
 
 pub mod client;
-pub mod formatting;
 pub mod host;
 pub mod http;
 pub mod plan;
 
-pub static SIMULATOR_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
-    LazyLock::new(CancellationToken::new);
 static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(VecDeque::new())));
 

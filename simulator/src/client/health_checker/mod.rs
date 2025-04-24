@@ -1,6 +1,7 @@
 use std::sync::LazyLock;
 
 use dst_demo_simulator_harness::{
+    SIMULATOR_CANCELLATION_TOKEN,
     time::simulator::STEP_MULTIPLIER,
     turmoil::{Sim, net::TcpStream},
 };
@@ -9,7 +10,7 @@ use tokio::io::AsyncWriteExt;
 
 pub mod plan;
 
-use crate::{SIMULATOR_CANCELLATION_TOKEN, plan::InteractionPlan as _, read_message};
+use crate::{plan::InteractionPlan as _, read_message};
 
 pub fn start(sim: &mut Sim<'_>) {
     let mut plan = HealthCheckInteractionPlan::new().with_gen_interactions(1000);

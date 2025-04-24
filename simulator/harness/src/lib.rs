@@ -14,16 +14,15 @@ use dst_demo_simulator_utils::{
 use formatting::TimeFormat as _;
 use turmoil::Sim;
 
+pub use dst_demo_simulator_utils as utils;
+pub use turmoil;
+
 #[cfg(feature = "random")]
 pub use dst_demo_random as random;
-pub use dst_demo_simulator_utils as utils;
 #[cfg(feature = "tcp")]
 pub use dst_demo_tcp as tcp;
 #[cfg(feature = "time")]
 pub use dst_demo_time as time;
-pub use getrandom;
-pub use rand;
-pub use turmoil;
 
 mod formatting;
 pub mod plan;

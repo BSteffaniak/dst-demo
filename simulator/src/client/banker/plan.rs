@@ -3,8 +3,10 @@ use std::time::Duration;
 use dst_demo_server::bank::{Transaction, TransactionId};
 use dst_demo_simulator_harness::{
     plan::InteractionPlan,
-    rand::{Rng, seq::IteratorRandom},
-    random::RNG,
+    random::{
+        RNG,
+        rand::rand::{Rng, seq::IteratorRandom as _},
+    },
 };
 use rust_decimal::Decimal;
 use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};

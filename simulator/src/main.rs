@@ -13,10 +13,6 @@ use dst_demo_simulator_harness::{
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    unsafe {
-        dst_demo_simulator_harness::init();
-    }
-
     pretty_env_logger::init();
 
     let duration_secs = std::env::var("SIMULATOR_DURATION")

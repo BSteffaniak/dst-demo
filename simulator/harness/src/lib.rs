@@ -5,7 +5,6 @@
 use std::{any::Any, panic::AssertUnwindSafe, sync::LazyLock, time::SystemTime};
 
 use dst_demo_simulator_utils::{SEED, STEP};
-use dst_demo_time::simulator::{EPOCH_OFFSET, STEP_MULTIPLIER};
 use formatting::TimeFormat as _;
 use tokio_util::sync::CancellationToken;
 use turmoil::Sim;
@@ -37,15 +36,22 @@ pub unsafe fn init() {
 }
 
 fn run_info() -> String {
-    format!(
-        "\
-        seed={seed}\n\
-        epoch_offset={epoch_offset}\n\
-        step_multiplier={step_multiplier}",
-        seed = *SEED,
-        epoch_offset = *EPOCH_OFFSET,
-        step_multiplier = *STEP_MULTIPLIER,
-    )
+    #[cfg(feature = "time")]
+    let extra = {
+        use dst_demo_time::simulator::{EPOCH_OFFSET, STEP_MULTIPLIER};
+
+        format!(
+            "\n\
+            epoch_offset={epoch_offset}\n\
+            step_multiplier={step_multiplier}",
+            epoch_offset = *EPOCH_OFFSET,
+            step_multiplier = *STEP_MULTIPLIER,
+        )
+    };
+    #[cfg(not(feature = "time"))]
+    let extra = String::new();
+
+    format!("seed={seed}{extra}", seed = *SEED)
 }
 
 #[allow(clippy::cast_precision_loss)]

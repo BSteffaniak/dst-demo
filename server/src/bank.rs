@@ -1,4 +1,4 @@
-#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 
 use std::time::SystemTime;
 
@@ -72,13 +72,15 @@ impl Bank for LocalBank {
     fn create_transaction(&mut self, amount: Decimal) -> Result<&Transaction, Error> {
         let id = self.current_id;
         self.current_id += 1;
+        let now = dst_demo_time::now();
+        let seconds_since_epoch = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let transaction = Transaction {
             id,
             amount,
-            created_at: dst_demo_time::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs() as CreateTime,
+            created_at: seconds_since_epoch as CreateTime,
         };
         assert!(
             self.current_id > transaction.id,
@@ -87,8 +89,13 @@ impl Bank for LocalBank {
         );
         assert!(
             transaction.created_at > 0,
-            "Invalid created_at={}",
+            "created_at={} must be > 0",
             transaction.created_at
+        );
+        assert!(
+            seconds_since_epoch >= transaction.created_at as u64,
+            "Time went backwards {now:?} seconds_since_epoch={seconds_since_epoch} created_at={}",
+            transaction.created_at,
         );
         self.transactions.push(transaction);
         Ok(self.transactions.last().unwrap())

@@ -70,6 +70,8 @@ impl InteractionPlan<Interaction> for HealthCheckInteractionPlan {
     ///
     /// * If the `RNG` `Mutex` fails to lock
     fn gen_interactions(&mut self, count: u64) {
+        self.plan.clear();
+        self.step = 0;
         let len = self.plan.len() as u64;
 
         for i in 1..=count {

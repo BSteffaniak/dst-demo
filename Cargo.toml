@@ -48,6 +48,7 @@ rust_decimal_macros = { version = "1.37.1", default-features = false }
 rustyline = "15.0.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.140"
+shell-words = "1.1.0"
 strum = "0.27.1"
 strum_macros = "0.27.1"
 thiserror = "2.0.12"

@@ -22,9 +22,10 @@ dst_demo_time = { version = "0.1.0", path = "../../time", optional = true, defau
     "simulator",
 ] }
 
-ctrlc   = { workspace = true }
-log     = { workspace = true }
-turmoil = { workspace = true }
+ctrlc       = { workspace = true }
+log         = { workspace = true }
+shell-words = { workspace = true }
+turmoil     = { workspace = true }
 
 [features]
 default = []

@@ -5,10 +5,10 @@
 use std::sync::{LazyLock, atomic::AtomicU32};
 
 pub static SEED: LazyLock<u64> = LazyLock::new(|| {
+    let seed = getrandom::u64().unwrap();
     std::env::var("SIMULATOR_SEED")
         .ok()
-        .and_then(|x| x.parse::<u64>().ok())
-        .unwrap_or_else(|| getrandom::u64().unwrap())
+        .map_or(seed, |x| x.parse::<u64>().unwrap())
 });
 
 pub static STEP: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(0));

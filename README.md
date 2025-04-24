@@ -1,6 +1,6 @@
 # 🏦 DST Demo: Bank App
 
-This repository demonstrates **Deterministic Simulation Testing (DST)**. It's a fully self-contained project built around a simple bank application that communicates over TCP and supports basic transaction operations. Through DST it uncovers complex bugs like the infamous **"epochalypse"** bug.
+This repository demonstrates **Deterministic Simulation Testing (DST)**. It's a fully self-contained project built around a simple bank application that communicates over TCP and supports basic transaction operations. Through DST it uncovers complex bugs like the infamous **"[epochalypse](https://en.wikipedia.org/wiki/Year_2038_problem)"** bug.
 
 ---
 

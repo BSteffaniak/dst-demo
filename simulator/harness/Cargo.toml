@@ -22,6 +22,7 @@ dst_demo_time = { version = "0.1.0", path = "../../time", optional = true, defau
     "simulator",
 ] }
 
+ctrlc      = { workspace = true }
 getrandom  = { workspace = true }
 log        = { workspace = true }
 rand       = { version = "=0.8.5" }

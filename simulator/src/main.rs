@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use dst_demo_server_simulator::{client, handle_actions, host};
 use dst_demo_simulator_harness::{
-    SIMULATOR_CANCELLATION_TOKEN,
     random::RNG,
     run_simulation,
     time::simulator::STEP_MULTIPLIER,
@@ -19,9 +18,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     pretty_env_logger::init();
-
-    ctrlc::set_handler(move || SIMULATOR_CANCELLATION_TOKEN.cancel())
-        .expect("Error setting Ctrl-C handler");
 
     let duration_secs = std::env::var("SIMULATOR_DURATION")
         .ok()

@@ -301,7 +301,6 @@ dependencies = [
 name = "dst_demo_server_simulator"
 version = "0.1.0"
 dependencies = [
- "ctrlc",
  "dst_demo_server",
  "dst_demo_simulator_harness",
  "log",
@@ -316,6 +315,7 @@ dependencies = [
 name = "dst_demo_simulator_harness"
 version = "0.1.0"
 dependencies = [
+ "ctrlc",
  "dst_demo_random",
  "dst_demo_simulator_utils",
  "dst_demo_tcp",

@@ -29,10 +29,17 @@ pub static SIMULATOR_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
 ///
 /// This must be called before any multi-threading occurs. Setting environment
 /// variables in multi-threaded programs is unsafe on non-windows operating systems
+///
+/// # Panics
+///
+/// * If fails to set the ctrl-c handler
 pub unsafe fn init() {
     unsafe {
         std::env::set_var("ENABLE_SIMULATOR", "1");
     }
+
+    ctrlc::set_handler(move || SIMULATOR_CANCELLATION_TOKEN.cancel())
+        .expect("Error setting Ctrl-C handler");
 }
 
 fn run_info() -> String {

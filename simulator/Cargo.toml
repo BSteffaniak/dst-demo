@@ -20,7 +20,6 @@ dst_demo_simulator_harness = { version = "0.1.0", path = "harness", default-feat
     "time",
 ] }
 
-ctrlc             = { workspace = true }
 log               = { workspace = true }
 pretty_env_logger = { workspace = true }
 rust_decimal      = { workspace = true }

@@ -17,6 +17,8 @@ use turmoil::Sim;
 pub use dst_demo_simulator_utils as utils;
 pub use turmoil;
 
+#[cfg(feature = "fs")]
+pub use dst_demo_fs as fs;
 #[cfg(feature = "random")]
 pub use dst_demo_random as random;
 #[cfg(feature = "tcp")]

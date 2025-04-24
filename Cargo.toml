@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "fs",
     "random",
     "simulator",
     "simulator/harness",
@@ -38,6 +39,7 @@ futures-util = { version = "0.3.31", default-features = false, features = [
 getrandom = "0.3.2"
 log = { version = "0.4", features = ["release_max_level_trace"] }
 paste = "1.0.15"
+pretty_assertions = "1.4.1"
 pretty_env_logger = "0.5"
 reqwest = { version = "0.12.15", default-features = false, features = [
     "rustls-tls",

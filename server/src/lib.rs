@@ -122,6 +122,9 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
 
                 log::debug!("client connection connection dropped with addr={addr}");
             }
+
+            log::debug!("server finished");
+
             Ok::<_, Error>(())
         })
         .await

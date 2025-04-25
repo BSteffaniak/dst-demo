@@ -53,8 +53,8 @@ impl InteractionPlanContext {
 }
 
 pub struct BankerInteractionPlan {
-    context: InteractionPlanContext,
-    step: u64,
+    pub context: InteractionPlanContext,
+    pub step: u64,
     pub plan: Vec<Interaction>,
 }
 

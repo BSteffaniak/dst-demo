@@ -85,14 +85,14 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
 
                 tokio::task::spawn(async move {
                     while let Ok(Some(action)) = read_message(&mut message, &mut stream).await {
-                        log::debug!("parsing action={action}");
+                        log::debug!("[{addr}] parsing action={action}");
                         let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {
-                            log::error!("Invalid action '{action}'");
+                            log::error!("[{addr}] Invalid action '{action}'");
                         }) else {
                             continue;
                         };
 
-                        log::info!("received {action} action");
+                        log::info!("[{addr}] received {action} action");
 
                         let resp = match action {
                             ServerAction::Health => health(&mut stream).await,
@@ -132,11 +132,11 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                         };
 
                         if let Err(e) = resp {
-                            log::error!("Failed to handle action={action}: {e:?}");
+                            log::error!("[{addr}] Failed to handle action={action}: {e:?}");
                         }
                     }
 
-                    log::debug!("client connection connection dropped with addr={addr}");
+                    log::debug!("[{addr}] client connection connection dropped");
                 });
             }
 

@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, LazyLock, RwLock},
-    time::Duration,
-};
+use std::time::Duration;
 
 use dst_demo_server::bank::{Transaction, TransactionId};
 use dst_demo_simulator_harness::{
@@ -14,11 +11,9 @@ use dst_demo_simulator_harness::{
 use rust_decimal::Decimal;
 use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
-static CONTEXT: LazyLock<InteractionPlanContext> = LazyLock::new(InteractionPlanContext::new);
-
 pub struct InteractionPlanContext {
-    curr_id: Arc<RwLock<TransactionId>>,
-    transactions: Arc<RwLock<Vec<Transaction>>>,
+    curr_id: TransactionId,
+    transactions: Vec<Transaction>,
 }
 
 impl Default for InteractionPlanContext {
@@ -29,38 +24,15 @@ impl Default for InteractionPlanContext {
 
 impl InteractionPlanContext {
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
-            curr_id: Arc::new(RwLock::new(1)),
-            transactions: Arc::new(RwLock::new(vec![])),
+            curr_id: 1,
+            transactions: vec![],
         }
     }
 
-    fn curr_id(&self) -> TransactionId {
-        *self.curr_id.read().unwrap()
-    }
-
-    fn add_transaction(&self, transaction: Transaction) {
-        self.transactions.write().unwrap().push(transaction);
-        *self.curr_id.write().unwrap() += 1;
-    }
-
-    fn get_transaction(&self, id: TransactionId) -> Option<Transaction> {
-        self.transactions
-            .read()
-            .unwrap()
-            .iter()
-            .find(|x| x.id == id)
-            .cloned()
-    }
-
-    fn get_random_existing_transaction(&self, rng: &mut impl Rng) -> Option<Transaction> {
-        self.transactions
-            .read()
-            .unwrap()
-            .iter()
-            .choose(&mut *rng)
-            .cloned()
+    fn get_random_existing_transaction(&self, rng: &mut impl Rng) -> Option<&Transaction> {
+        self.transactions.iter().choose(&mut *rng)
     }
 
     fn get_random_existing_transaction_id(&self, rng: &mut impl Rng) -> Option<TransactionId> {
@@ -68,13 +40,14 @@ impl InteractionPlanContext {
     }
 
     #[allow(unused)]
-    fn clear(&self) {
-        self.transactions.write().unwrap().clear();
-        *self.curr_id.write().unwrap() = 1;
+    fn clear(&mut self) {
+        self.transactions.clear();
+        self.curr_id = 1;
     }
 }
 
 pub struct BankerInteractionPlan {
+    context: InteractionPlanContext,
     step: u64,
     pub plan: Vec<Interaction>,
 }
@@ -89,6 +62,7 @@ impl BankerInteractionPlan {
     #[must_use]
     pub const fn new() -> Self {
         Self {
+            context: InteractionPlanContext::new(),
             step: 0,
             plan: vec![],
         }
@@ -140,7 +114,8 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
                     self.add_interaction(Interaction::ListTransactions);
                 }
                 InteractionType::GetTransaction => {
-                    let id = CONTEXT
+                    let id = self
+                        .context
                         .get_random_existing_transaction_id(&mut rng)
                         .unwrap_or_else(|| rng.r#gen());
 
@@ -154,7 +129,8 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
                     self.add_interaction(Interaction::CreateTransaction { amount });
                 }
                 InteractionType::VoidTransaction => {
-                    let id = CONTEXT
+                    let id = self
+                        .context
                         .get_random_existing_transaction_id(&mut rng)
                         .unwrap_or_else(|| rng.r#gen());
 
@@ -172,19 +148,21 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
             | Interaction::ListTransactions
             | Interaction::GetTransaction { .. } => {}
             Interaction::CreateTransaction { amount } => {
-                CONTEXT.add_transaction(Transaction {
-                    id: CONTEXT.curr_id(),
+                self.context.transactions.push(Transaction {
+                    id: self.context.curr_id,
                     amount: *amount,
                     created_at: 0,
                 });
+                self.context.curr_id += 1;
             }
             Interaction::VoidTransaction { id } => {
-                if let Some(existing) = CONTEXT.get_transaction(*id) {
-                    CONTEXT.add_transaction(Transaction {
-                        id: CONTEXT.curr_id(),
+                if let Some(existing) = self.context.transactions.iter().find(|x| x.id == *id) {
+                    self.context.transactions.push(Transaction {
+                        id: self.context.curr_id,
                         amount: existing.amount,
                         created_at: 0,
                     });
+                    self.context.curr_id += 1;
                 }
             }
         }

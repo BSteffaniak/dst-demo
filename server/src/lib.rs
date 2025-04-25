@@ -12,11 +12,11 @@ use std::{
 
 use bank::{Bank, CreateTime, LocalBank, Transaction, TransactionId};
 use dst_demo_random::Rng;
-use dst_demo_tcp::{GenericTcpListener, TcpListener, TcpStream};
+use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
     sync::RwLock,
 };
 use tokio_util::sync::CancellationToken;
@@ -79,12 +79,13 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
 
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {
-            while let Ok((mut stream, addr)) = listener.accept().await {
+            while let Ok((stream, addr)) = listener.accept().await {
+                let (mut read, mut write) = stream.into_split();
                 let mut message = String::new();
                 let bank = bank.clone();
 
                 tokio::task::spawn(async move {
-                    while let Ok(Some(action)) = read_message(&mut message, &mut stream).await {
+                    while let Ok(Some(action)) = read_message(&mut message, &mut read).await {
                         log::debug!("[{addr}] parsing action={action}");
                         let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {
                             log::error!("[{addr}] Invalid action '{action}'");
@@ -95,19 +96,25 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                         log::info!("[{addr}] received {action} action");
 
                         let resp = match action {
-                            ServerAction::Health => health(&mut stream).await,
+                            ServerAction::Health => health(&mut write).await,
                             ServerAction::ListTransactions => {
-                                list_transactions(&*bank.read().await, &mut stream).await
+                                list_transactions(&*bank.read().await, &mut write).await
                             }
                             ServerAction::GetTransaction => {
-                                get_transaction(&*bank.read().await, &mut message, &mut stream)
-                                    .await
+                                get_transaction(
+                                    &*bank.read().await,
+                                    &mut message,
+                                    &mut write,
+                                    &mut read,
+                                )
+                                .await
                             }
                             ServerAction::CreateTransaction => {
                                 create_transaction(
                                     &mut *bank.write().await,
                                     &mut message,
-                                    &mut stream,
+                                    &mut write,
+                                    &mut read,
                                 )
                                 .await
                             }
@@ -115,12 +122,13 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                                 void_transaction(
                                     &mut *bank.write().await,
                                     &mut message,
-                                    &mut stream,
+                                    &mut write,
+                                    &mut read,
                                 )
                                 .await
                             }
                             ServerAction::GenerateRandomNumber => {
-                                generate_random_number(&mut stream).await
+                                generate_random_number(&mut write).await
                             }
                             ServerAction::Close => {
                                 return;
@@ -153,7 +161,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
 
 async fn read_message(
     message: &mut String,
-    stream: &mut TcpStream,
+    reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<Option<String>, Error> {
     if let Some(index) = message.chars().position(|x| x == 0 as char) {
         let mut remaining = message.split_off(index);
@@ -166,7 +174,7 @@ async fn read_message(
     let mut buf = [0_u8; 1024];
 
     Ok(loop {
-        let count = match stream.read(&mut buf).await {
+        let count = match reader.read(&mut buf).await {
             Ok(count) => count,
             Err(e) => {
                 log::error!("read_message: failed to read from stream: {e:?}");
@@ -191,7 +199,10 @@ async fn read_message(
     })
 }
 
-async fn write_message(message: impl Into<String>, stream: &mut TcpStream) -> Result<(), Error> {
+async fn write_message(
+    message: impl Into<String>,
+    stream: &mut (impl AsyncWrite + Unpin),
+) -> Result<(), Error> {
     let message = message.into();
     log::debug!("write_message: writing message={message}");
     let mut bytes = message.into_bytes();
@@ -254,7 +265,10 @@ impl std::str::FromStr for Transaction {
     }
 }
 
-async fn list_transactions(bank: &impl Bank, stream: &mut TcpStream) -> Result<(), Error> {
+async fn list_transactions(
+    bank: &impl Bank,
+    writer: &mut (impl AsyncWrite + Unpin),
+) -> Result<(), Error> {
     let transactions = bank.list_transactions()?;
 
     if transactions.is_empty() {
@@ -263,7 +277,7 @@ async fn list_transactions(bank: &impl Bank, stream: &mut TcpStream) -> Result<(
     }
 
     for transaction in transactions {
-        write_message(transaction.to_string(), stream).await?;
+        write_message(transaction.to_string(), writer).await?;
     }
 
     Ok(())
@@ -272,10 +286,11 @@ async fn list_transactions(bank: &impl Bank, stream: &mut TcpStream) -> Result<(
 async fn get_transaction(
     bank: &impl Bank,
     message: &mut String,
-    stream: &mut TcpStream,
+    writer: &mut (impl AsyncWrite + Unpin),
+    reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<(), Error> {
-    write_message("Enter the transaction ID:", stream).await?;
-    let Some(message) = read_message(message, stream).await? else {
+    write_message("Enter the transaction ID:", writer).await?;
+    let Some(message) = read_message(message, reader).await? else {
         use std::io::{Error, ErrorKind};
         return Err(Error::new(
             ErrorKind::NotFound,
@@ -285,9 +300,9 @@ async fn get_transaction(
     };
     let id = message.parse::<TransactionId>()?;
     if let Some(transaction) = bank.get_transaction(id)? {
-        write_message(transaction.to_string(), stream).await?;
+        write_message(transaction.to_string(), writer).await?;
     } else {
-        write_message("Transaction not found", stream).await?;
+        write_message("Transaction not found", writer).await?;
     }
     Ok(())
 }
@@ -295,10 +310,11 @@ async fn get_transaction(
 async fn create_transaction(
     bank: &mut impl Bank,
     message: &mut String,
-    stream: &mut TcpStream,
+    writer: &mut (impl AsyncWrite + Unpin),
+    reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<(), Error> {
-    write_message("Enter the transaction amount:", stream).await?;
-    let Some(message) = read_message(message, stream).await? else {
+    write_message("Enter the transaction amount:", writer).await?;
+    let Some(message) = read_message(message, reader).await? else {
         use std::io::{Error, ErrorKind};
         return Err(Error::new(
             ErrorKind::NotFound,
@@ -307,17 +323,18 @@ async fn create_transaction(
         .into());
     };
     let transaction = bank.create_transaction(Decimal::from_str(&message)?)?;
-    write_message(transaction.to_string(), stream).await?;
+    write_message(transaction.to_string(), writer).await?;
     Ok(())
 }
 
 async fn void_transaction(
     bank: &mut impl Bank,
     message: &mut String,
-    stream: &mut TcpStream,
+    writer: &mut (impl AsyncWrite + Unpin),
+    reader: &mut (impl AsyncRead + Unpin),
 ) -> Result<(), Error> {
-    write_message("Enter the transaction ID:", stream).await?;
-    let Some(message) = read_message(message, stream).await? else {
+    write_message("Enter the transaction ID:", writer).await?;
+    let Some(message) = read_message(message, reader).await? else {
         use std::io::{Error, ErrorKind};
         return Err(Error::new(
             ErrorKind::NotFound,
@@ -327,18 +344,18 @@ async fn void_transaction(
     };
     let id = message.parse::<TransactionId>()?;
     if let Some(transaction) = bank.void_transaction(id)? {
-        write_message(transaction.to_string(), stream).await?;
+        write_message(transaction.to_string(), writer).await?;
     } else {
-        write_message("Transaction not found", stream).await?;
+        write_message("Transaction not found", writer).await?;
     }
     Ok(())
 }
 
-async fn health(stream: &mut TcpStream) -> Result<(), Error> {
+async fn health(stream: &mut (impl AsyncWrite + Unpin)) -> Result<(), Error> {
     write_message("healthy", stream).await
 }
 
-async fn generate_random_number(stream: &mut TcpStream) -> Result<(), Error> {
+async fn generate_random_number(stream: &mut (impl AsyncWrite + Unpin)) -> Result<(), Error> {
     let number = RNG.next_u64();
     write_message(number.to_string(), stream).await
 }

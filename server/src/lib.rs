@@ -273,12 +273,15 @@ async fn list_transactions(
 
     if transactions.is_empty() {
         log::debug!("list_transactions: no transactions");
-        return Ok(());
     }
 
-    for transaction in transactions {
-        write_message(transaction.to_string(), writer).await?;
-    }
+    let message = transactions
+        .iter()
+        .map(|x| x.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    write_message(message, writer).await?;
 
     Ok(())
 }

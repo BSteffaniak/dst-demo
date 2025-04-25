@@ -7,7 +7,7 @@ pub mod bank;
 use std::{
     str::{self, FromStr as _},
     string::FromUtf8Error,
-    sync::LazyLock,
+    sync::{Arc, LazyLock},
 };
 
 use bank::{Bank, LocalBank, Transaction, TransactionId};
@@ -15,7 +15,10 @@ use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, TcpListener, TcpStream};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    sync::RwLock,
+};
 use tokio_util::sync::CancellationToken;
 
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
@@ -72,55 +75,69 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let listener = TcpListener::bind(&addr).await?;
     log::info!("Server listening on {addr}");
 
-    let mut bank = LocalBank::new()?;
+    let bank = Arc::new(RwLock::new(LocalBank::new()?));
 
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {
             while let Ok((mut stream, addr)) = listener.accept().await {
                 let mut message = String::new();
+                let bank = bank.clone();
 
-                while let Ok(Some(action)) = read_message(&mut message, &mut stream).await {
-                    log::debug!("parsing action={action}");
-                    let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {
-                        log::error!("Invalid action '{action}'");
-                    }) else {
-                        continue;
-                    };
+                tokio::task::spawn(async move {
+                    while let Ok(Some(action)) = read_message(&mut message, &mut stream).await {
+                        log::debug!("parsing action={action}");
+                        let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {
+                            log::error!("Invalid action '{action}'");
+                        }) else {
+                            continue;
+                        };
 
-                    log::info!("received {action} action");
+                        log::info!("received {action} action");
 
-                    let resp = match action {
-                        ServerAction::Health => health(&mut stream).await,
-                        ServerAction::ListTransactions => {
-                            list_transactions(&bank, &mut stream).await
-                        }
-                        ServerAction::GetTransaction => {
-                            get_transaction(&bank, &mut message, &mut stream).await
-                        }
-                        ServerAction::CreateTransaction => {
-                            create_transaction(&mut bank, &mut message, &mut stream).await
-                        }
-                        ServerAction::VoidTransaction => {
-                            void_transaction(&mut bank, &mut message, &mut stream).await
-                        }
-                        ServerAction::GenerateRandomNumber => {
-                            generate_random_number(&mut stream).await
-                        }
-                        ServerAction::Close => {
-                            break;
-                        }
-                        ServerAction::Exit => {
-                            SERVER_CANCELLATION_TOKEN.cancel();
-                            break;
-                        }
-                    };
+                        let resp = match action {
+                            ServerAction::Health => health(&mut stream).await,
+                            ServerAction::ListTransactions => {
+                                list_transactions(&*bank.read().await, &mut stream).await
+                            }
+                            ServerAction::GetTransaction => {
+                                get_transaction(&*bank.read().await, &mut message, &mut stream)
+                                    .await
+                            }
+                            ServerAction::CreateTransaction => {
+                                create_transaction(
+                                    &mut *bank.write().await,
+                                    &mut message,
+                                    &mut stream,
+                                )
+                                .await
+                            }
+                            ServerAction::VoidTransaction => {
+                                void_transaction(
+                                    &mut *bank.write().await,
+                                    &mut message,
+                                    &mut stream,
+                                )
+                                .await
+                            }
+                            ServerAction::GenerateRandomNumber => {
+                                generate_random_number(&mut stream).await
+                            }
+                            ServerAction::Close => {
+                                return;
+                            }
+                            ServerAction::Exit => {
+                                SERVER_CANCELLATION_TOKEN.cancel();
+                                return;
+                            }
+                        };
 
-                    if let Err(e) = resp {
-                        log::error!("Failed to handle action={action}: {e:?}");
+                        if let Err(e) = resp {
+                            log::error!("Failed to handle action={action}: {e:?}");
+                        }
                     }
-                }
 
-                log::debug!("client connection connection dropped with addr={addr}");
+                    log::debug!("client connection connection dropped with addr={addr}");
+                });
             }
 
             log::debug!("server finished");

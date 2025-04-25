@@ -38,7 +38,7 @@ pub fn start(sim: &mut Sim<'_>) {
     sim.client_until_cancelled(&name.clone(), async move {
         loop {
             while let Some(interaction) = plan.step().cloned() {
-                static TIMEOUT: u64 = 100;
+                static TIMEOUT: u64 = 10;
 
                 #[allow(clippy::cast_possible_truncation)]
                 let interaction_timeout = TIMEOUT * 1000

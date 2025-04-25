@@ -90,7 +90,7 @@ impl InteractionPlan<Interaction> for FaultInjectionInteractionPlan {
                         break;
                     }
                     InteractionType::Bounce => {
-                        if rng.gen_bool(0.99) {
+                        if rng.gen_bool(0.9) {
                             continue;
                         }
                         self.add_interaction(Interaction::Bounce(HOST.to_string()));

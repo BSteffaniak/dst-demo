@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, LazyLock, Mutex},
 };
 
-use dst_demo_simulator_harness::turmoil::Sim;
+use dst_demo_simulator_harness::{random::RNG, turmoil::Sim};
 use tokio::io::AsyncReadExt;
 
 pub mod client;
@@ -18,6 +18,14 @@ pub mod http;
 
 static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(VecDeque::new())));
+
+pub static BANKER_COUNT: LazyLock<u64> = LazyLock::new(|| {
+    let value = RNG.gen_range(0..20u64);
+
+    std::env::var("SIMULATOR_BANKER_COUNT")
+        .ok()
+        .map_or(value, |x| x.parse::<u64>().unwrap())
+});
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

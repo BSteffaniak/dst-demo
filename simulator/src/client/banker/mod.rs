@@ -1,3 +1,5 @@
+use std::sync::atomic::AtomicU32;
+
 use dst_demo_server::ServerAction;
 use dst_demo_simulator_harness::{
     CancellableSim,
@@ -16,13 +18,19 @@ use crate::host::server::{HOST, PORT};
 ///
 /// * If `CANCELLATION_TOKEN` `Mutex` fails to lock
 pub fn start(sim: &mut Sim<'_>) {
+    static ID: AtomicU32 = AtomicU32::new(1);
+
     let addr = format!("{HOST}:{PORT}");
 
     log::debug!("Generating initial test plan");
 
     let mut plan = BankerInteractionPlan::new().with_gen_interactions(1000);
+    let name = format!(
+        "Banker{}",
+        ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+    );
 
-    sim.client_until_cancelled("Banker", async move {
+    sim.client_until_cancelled(&name, async move {
         loop {
             while let Some(interaction) = plan.step() {
                 static TIMEOUT: u64 = 10;

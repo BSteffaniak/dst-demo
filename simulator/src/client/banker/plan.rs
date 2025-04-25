@@ -31,6 +31,12 @@ impl InteractionPlanContext {
         }
     }
 
+    #[must_use]
+    #[allow(clippy::missing_const_for_fn, unused)]
+    pub fn get_transactions(&self) -> &[Transaction] {
+        &self.transactions
+    }
+
     fn get_random_existing_transaction(&self, rng: &mut impl Rng) -> Option<&Transaction> {
         self.transactions.iter().choose(&mut *rng)
     }

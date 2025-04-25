@@ -95,8 +95,7 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
     fn gen_interactions(&mut self, count: u64) {
         let len = self.plan.len() as u64;
 
-        let rng: &dst_demo_simulator_harness::random::Rng = &RNG;
-        let mut rng: dst_demo_simulator_harness::random::Rng = rng.clone();
+        let mut rng = RNG.clone();
 
         for i in 1..=count {
             let interaction_type = InteractionType::iter().choose(&mut rng).unwrap();

@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use bank::{Bank, LocalBank, Transaction, TransactionId};
+use bank::{Bank, CreateTime, LocalBank, Transaction, TransactionId};
 use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, TcpListener, TcpStream};
 use rust_decimal::Decimal;
@@ -205,6 +205,52 @@ impl std::fmt::Display for &Transaction {
             "id={} created_at={} amount=${:.2}",
             self.id, self.created_at, self.amount
         ))
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum TransactionFromStrError {
+    #[error("Missing id")]
+    MissingId,
+    #[error("Missing created_at")]
+    MissingCreatedAt,
+    #[error("Missing amount")]
+    MissingAmount,
+    #[error(transparent)]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[error(transparent)]
+    FromStrDecimal(#[from] rust_decimal::Error),
+}
+
+impl std::str::FromStr for Transaction {
+    type Err = TransactionFromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut components = s.split(' ');
+
+        let id = components
+            .next()
+            .ok_or(TransactionFromStrError::MissingId)?;
+        let id = &id["id=".len()..];
+        let id = id.parse::<TransactionId>()?;
+
+        let created_at = components
+            .next()
+            .ok_or(TransactionFromStrError::MissingCreatedAt)?;
+        let created_at = &created_at["created_at=".len()..];
+        let created_at = created_at.parse::<CreateTime>()?;
+
+        let amount = components
+            .next()
+            .ok_or(TransactionFromStrError::MissingCreatedAt)?;
+        let amount = &amount["amount=$".len()..];
+        let amount = Decimal::from_str(amount)?;
+
+        Ok(Self {
+            id,
+            amount,
+            created_at,
+        })
     }
 }
 

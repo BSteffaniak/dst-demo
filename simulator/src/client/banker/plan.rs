@@ -122,7 +122,8 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
                     self.add_interaction(Interaction::GetTransaction { id });
                 }
                 InteractionType::CreateTransaction => {
-                    let amount = rng.gen_range(-100_000_000_000.0..100_000_000_000.0);
+                    const RANGE: f64 = 100_000_000_000.0;
+                    let amount = rng.gen_range(-RANGE..RANGE);
                     let amount = amount.try_into().unwrap();
 
                     self.add_interaction(Interaction::CreateTransaction { amount });

@@ -109,8 +109,8 @@ impl Bank for LocalBank {
         assert!(
             self.transactions
                 .last()
-                .is_none_or(|x| transaction.id > x.id),
-            "id went backwards from last_transaction.id={} to {}",
+                .is_none_or(|x| transaction.id == x.id + 1),
+            "expected id to be last transaction.id + 1 last_transaction.id={} to transaction_id={}",
             self.transactions.last().unwrap().id,
             transaction.id,
         );

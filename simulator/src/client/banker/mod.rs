@@ -14,9 +14,6 @@ mod plan;
 
 use crate::host::server::{HOST, PORT};
 
-/// # Panics
-///
-/// * If `CANCELLATION_TOKEN` `Mutex` fails to lock
 pub fn start(sim: &mut Sim<'_>) {
     static ID: AtomicU32 = AtomicU32::new(1);
 

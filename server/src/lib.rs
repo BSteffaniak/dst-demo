@@ -185,7 +185,7 @@ async fn read_message(
             log::debug!("read_message: received empty response");
             break None;
         }
-        log::debug!("read count={count}");
+        log::trace!("read count={count}");
         let value = String::from_utf8(buf[..count].to_vec())?;
         message.push_str(&value);
 

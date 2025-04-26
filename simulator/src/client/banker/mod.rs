@@ -1,4 +1,7 @@
-use std::{str::FromStr, sync::atomic::AtomicU32};
+use std::{
+    str::FromStr,
+    sync::{LazyLock, atomic::AtomicU32},
+};
 
 use dst_demo_server::{
     ServerAction,
@@ -21,9 +24,13 @@ use crate::{
     read_message,
 };
 
-pub fn start(sim: &mut Sim<'_>) {
-    static ID: AtomicU32 = AtomicU32::new(1);
+static ID: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(1));
 
+pub fn reset_id() {
+    ID.store(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn start(sim: &mut Sim<'_>) {
     let server_addr = format!("{HOST}:{PORT}");
 
     let name = format!(

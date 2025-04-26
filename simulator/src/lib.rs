@@ -6,7 +6,7 @@ use std::{
     collections::VecDeque,
     pin::Pin,
     string::FromUtf8Error,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{Arc, LazyLock, Mutex, RwLock},
 };
 
 use dst_demo_simulator_harness::{random::RNG, turmoil::Sim};
@@ -19,13 +19,32 @@ pub mod http;
 static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
     LazyLock::new(|| Arc::new(Mutex::new(VecDeque::new())));
 
-pub static BANKER_COUNT: LazyLock<u64> = LazyLock::new(|| {
-    let value = RNG.gen_range(0..20u64);
+static BANKER_COUNT: LazyLock<RwLock<Option<u64>>> = LazyLock::new(|| RwLock::new(None));
+
+fn gen_banker_count() -> u64 {
+    let value = RNG.gen_range(1..30u64);
 
     std::env::var("SIMULATOR_BANKER_COUNT")
         .ok()
         .map_or(value, |x| x.parse::<u64>().unwrap())
-});
+}
+
+/// # Panics
+///
+/// * If the `BANKER_COUNT` `RwLock` fails to write to
+pub fn reset_banker_count() -> u64 {
+    let value = gen_banker_count();
+    *BANKER_COUNT.write().unwrap() = Some(value);
+    value
+}
+
+/// # Panics
+///
+/// * If the `BANKER_COUNT` `RwLock` fails to read from
+#[must_use]
+pub fn banker_count() -> u64 {
+    BANKER_COUNT.read().unwrap().unwrap()
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

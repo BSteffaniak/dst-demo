@@ -36,7 +36,6 @@ futures-core = "0.3.31"
 futures-util = { version = "0.3.31", default-features = false, features = [
     "std",
 ] }
-getrandom = "0.3.2"
 log = { version = "0.4", features = ["release_max_level_trace"] }
 paste = "1.0.15"
 pretty_assertions = "1.4.1"

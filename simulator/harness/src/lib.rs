@@ -4,12 +4,13 @@
 
 use std::{
     panic::AssertUnwindSafe,
-    sync::{Arc, Mutex},
+    sync::{Arc, LazyLock, Mutex, atomic::AtomicBool},
     time::{Duration, SystemTime},
 };
 
 use dst_demo_simulator_utils::{
-    SEED, SIMULATOR_CANCELLATION_TOKEN, STEP, cancel_simulation, duration,
+    cancel_simulation, duration, reset_simulator_cancellation_token, reset_step,
+    simulator_cancellation_token, step_next,
 };
 use formatting::TimeFormat as _;
 use turmoil::Sim;
@@ -29,7 +30,20 @@ pub use dst_demo_time as time;
 mod formatting;
 pub mod plan;
 
-fn run_info(props: &[(String, String)]) -> String {
+static RUNS: LazyLock<u64> = LazyLock::new(|| {
+    let runs = dst_demo_random::RNG.gen_range(1..1000u64);
+    let runs = if duration() < u64::MAX && !dst_demo_random::simulator::contains_fixed_seed() {
+        runs
+    } else {
+        1
+    };
+
+    std::env::var("SIMULATOR_RUNS")
+        .ok()
+        .map_or(runs, |x| x.parse::<u64>().unwrap())
+});
+
+fn run_info(run_index: u64, props: &[(String, String)]) -> String {
     #[cfg(feature = "time")]
     let extra = {
         use dst_demo_time::simulator::{epoch_offset, step_multiplier};
@@ -52,7 +66,20 @@ fn run_info(props: &[(String, String)]) -> String {
         write!(props_str, "\n{k}={v}").unwrap();
     }
 
-    format!("seed={seed}{extra}{props_str}", seed = *SEED)
+    let runs = *RUNS;
+    let runs = if runs > 1 {
+        format!("{run_index}/{runs}")
+    } else {
+        runs.to_string()
+    };
+
+    format!(
+        "\
+        seed={seed}\n\
+        runs={runs}\
+        {extra}{props_str}",
+        seed = dst_demo_random::simulator::seed(),
+    )
 }
 
 fn get_cargoified_args() -> Vec<String> {
@@ -93,7 +120,7 @@ fn get_cargoified_args() -> Vec<String> {
     args
 }
 
-fn get_run_command() -> String {
+fn get_run_command(skip_env: &[&str], seed: u64) -> String {
     let args = get_cargoified_args();
     let quoted_args = args
         .iter()
@@ -106,40 +133,67 @@ fn get_run_command() -> String {
     for (name, value) in std::env::vars() {
         use std::fmt::Write as _;
 
-        if !name.starts_with("SIMULATOR_") {
+        if !name.starts_with("SIMULATOR_") && name != "RUST_LOG" {
             continue;
         }
-        if name == "SIMULATOR_SEED" {
+        if skip_env.iter().any(|x| *x == name) {
             continue;
         }
 
         write!(env_vars, "{name}={} ", shell_words::quote(value.as_str())).unwrap();
     }
 
-    format!("SIMULATOR_SEED={seed} {env_vars}{cmd}", seed = *SEED)
+    format!("SIMULATOR_SEED={seed} {env_vars}{cmd}")
 }
 
 #[allow(clippy::cast_precision_loss)]
 fn run_info_end(
+    run_index: u64,
     props: &[(String, String)],
     successful: bool,
     real_time_millis: u128,
     sim_time_millis: u128,
 ) -> String {
+    let run_from_seed = if *RUNS == 1 && dst_demo_random::simulator::contains_fixed_seed() {
+        String::new()
+    } else {
+        let cmd = get_run_command(
+            &["SIMULATOR_SEED", "SIMULATOR_RUNS", "SIMULATOR_DURATION"],
+            dst_demo_random::simulator::seed(),
+        );
+        format!("\n\nTo run again with this seed: `{cmd}`")
+    };
+    let run_from_start = if !dst_demo_random::simulator::contains_fixed_seed() && *RUNS > 1 {
+        let cmd = get_run_command(
+            &["SIMULATOR_SEED"],
+            dst_demo_random::simulator::initial_seed(),
+        );
+        format!("\nTo run entire simulation again from the first run: `{cmd}`")
+    } else {
+        String::new()
+    };
     format!(
         "\
         {run_info}\n\
         successful={successful}\n\
         real_time_elapsed={real_time}\n\
-        simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\n\
-        \n\
-        To run again with this seed: `{cmd}`",
-        run_info = run_info(props),
+        simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\
+        {run_from_seed}{run_from_start}",
+        run_info = run_info(run_index, props),
         real_time = real_time_millis.into_formatted(),
         simulated_time = sim_time_millis.into_formatted(),
         simulated_time_x = sim_time_millis as f64 / real_time_millis as f64,
-        cmd = get_run_command(),
     )
+}
+
+static END_SIM: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
+
+pub fn end_sim() {
+    END_SIM.store(true, std::sync::atomic::Ordering::SeqCst);
+
+    if !simulator_cancellation_token().is_cancelled() {
+        cancel_simulation();
+    }
 }
 
 /// # Panics
@@ -153,37 +207,33 @@ fn run_info_end(
 /// * If the `Sim` `step` returns an error, we return that in an Ok(Err(e))
 #[allow(clippy::too_many_lines)]
 pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::error::Error>> {
-    let runs = 1;
+    ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
 
-    for _ in 0..runs {
-        let panic = Arc::new(Mutex::new(None));
-        std::panic::set_hook(Box::new({
-            let prev_hook = std::panic::take_hook();
-            let panic = panic.clone();
-            move |x| {
-                *panic.lock().unwrap() = Some(x.to_string());
-                if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
-                    cancel_simulation();
-                }
-                prev_hook(x);
-            }
-        }));
+    let panic = Arc::new(Mutex::new(None));
+    std::panic::set_hook(Box::new({
+        let prev_hook = std::panic::take_hook();
+        let panic = panic.clone();
+        move |x| {
+            *panic.lock().unwrap() = Some(x.to_string());
+            end_sim();
+            prev_hook(x);
+        }
+    }));
 
-        ctrlc::set_handler(cancel_simulation).expect("Error setting Ctrl-C handler");
+    let runs = *RUNS;
+
+    for run_index in 1..=runs {
+        dst_demo_random::simulator::reset_rng();
+        #[cfg(feature = "fs")]
+        dst_demo_fs::simulator::reset_fs();
+        #[cfg(feature = "time")]
+        dst_demo_time::simulator::reset_epoch_offset();
+        #[cfg(feature = "time")]
+        dst_demo_time::simulator::reset_step_multiplier();
+        reset_simulator_cancellation_token();
+        reset_step();
 
         let duration_secs = duration();
-
-        STEP.store(1, std::sync::atomic::Ordering::SeqCst);
-
-        let props = bootstrap.props();
-
-        println!(
-            "\n\
-        =========================== START ============================\n\
-        Server simulator starting\n{}\n\
-        ==============================================================\n",
-            run_info(&props)
-        );
 
         bootstrap.init();
 
@@ -192,6 +242,16 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
         let mut sim = builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
         #[cfg(not(feature = "random"))]
         let mut sim = builder.build();
+
+        let props = bootstrap.props();
+
+        println!(
+            "\n\
+            =========================== START ============================\n\
+            Server simulator starting\n{}\n\
+            ==============================================================\n",
+            run_info(run_index, &props)
+        );
 
         let start = SystemTime::now();
 
@@ -216,8 +276,8 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
                 }
             };
 
-            while !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
-                let step = STEP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            while !simulator_cancellation_token().is_cancelled() {
+                let step = step_next();
 
                 if duration_secs < u64::MAX
                     && SystemTime::now().duration_since(start).unwrap().as_secs() >= duration_secs
@@ -246,7 +306,7 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
                 }
             }
 
-            if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
+            if !simulator_cancellation_token().is_cancelled() {
                 cancel_simulation();
             }
 
@@ -261,10 +321,11 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
 
         println!(
             "\n\
-        =========================== FINISH ===========================\n\
-        Server simulator finished\n{}\n\
-        ==============================================================",
+            =========================== FINISH ===========================\n\
+            Server simulator finished\n{}\n\
+            ==============================================================",
             run_info_end(
+                run_index,
                 &props,
                 resp.as_ref().is_ok_and(Result::is_ok),
                 real_time_millis,
@@ -277,6 +338,12 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
         }
 
         resp.unwrap()?;
+
+        if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
+            break;
+        }
+
+        dst_demo_random::simulator::reset_seed();
     }
 
     Ok(())
@@ -342,7 +409,7 @@ pub fn client_until_cancelled(
     action: impl Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
 ) {
     sim.client(name, async move {
-        SIMULATOR_CANCELLATION_TOKEN
+        simulator_cancellation_token()
             .run_until_cancelled(action)
             .await
             .transpose()?;

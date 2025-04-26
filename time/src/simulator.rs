@@ -5,11 +5,7 @@ use std::{
 
 use dst_demo_random::non_uniform_distribute_i32;
 
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-static EPOCH_OFFSET: LazyLock<RwLock<u64>> = LazyLock::new(|| RwLock::new(gen_epoch_offset()));
-
-static STEP_MULTIPLIER: LazyLock<RwLock<u64>> =
-    LazyLock::new(|| RwLock::new(gen_step_multiplier()));
+static EPOCH_OFFSET: LazyLock<RwLock<Option<u64>>> = LazyLock::new(|| RwLock::new(None));
 
 fn gen_epoch_offset() -> u64 {
     let value = dst_demo_random::RNG.gen_range(1..100_000_000_000_000u64);
@@ -22,10 +18,9 @@ fn gen_epoch_offset() -> u64 {
 /// # Panics
 ///
 /// * If the `EPOCH_OFFSET` `RwLock` fails to write to
-pub fn reset_epoch_offset() -> u64 {
+pub fn reset_epoch_offset() {
     let value = gen_epoch_offset();
-    *EPOCH_OFFSET.write().unwrap() = value;
-    value
+    *EPOCH_OFFSET.write().unwrap() = Some(value);
 }
 
 /// # Panics
@@ -33,14 +28,15 @@ pub fn reset_epoch_offset() -> u64 {
 /// * If the `EPOCH_OFFSET` `RwLock` fails to read from
 #[must_use]
 pub fn epoch_offset() -> u64 {
-    *EPOCH_OFFSET.read().unwrap()
+    EPOCH_OFFSET.read().unwrap().unwrap()
 }
+
+static STEP_MULTIPLIER: LazyLock<RwLock<Option<u64>>> = LazyLock::new(|| RwLock::new(None));
 
 fn gen_step_multiplier() -> u64 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let value = {
-        let rng = &dst_demo_random::RNG;
-        let value = rng.gen_range(1..1_000_000);
+        let value = dst_demo_random::RNG.gen_range(1..1_000_000);
         let value = non_uniform_distribute_i32!(value, 10) as u64;
         if value == 0 { 1 } else { value }
     };
@@ -52,10 +48,9 @@ fn gen_step_multiplier() -> u64 {
 /// # Panics
 ///
 /// * If the `STEP_MULTIPLIER` `RwLock` fails to write to
-pub fn reset_step_multiplier() -> u64 {
+pub fn reset_step_multiplier() {
     let value = gen_step_multiplier();
-    *STEP_MULTIPLIER.write().unwrap() = value;
-    value
+    *STEP_MULTIPLIER.write().unwrap() = Some(value);
 }
 
 /// # Panics
@@ -63,7 +58,7 @@ pub fn reset_step_multiplier() -> u64 {
 /// * If the `STEP_MULTIPLIER` `RwLock` fails to read from
 #[must_use]
 pub fn step_multiplier() -> u64 {
-    *STEP_MULTIPLIER.read().unwrap()
+    STEP_MULTIPLIER.read().unwrap().unwrap()
 }
 
 /// # Panics
@@ -73,7 +68,7 @@ pub fn step_multiplier() -> u64 {
 pub fn now() -> SystemTime {
     let epoch_offset = epoch_offset();
     let step_multiplier = step_multiplier();
-    let step = u64::from(dst_demo_simulator_utils::step());
+    let step = u64::from(dst_demo_simulator_utils::current_step());
     let mult_step = step.checked_mul(step_multiplier).unwrap();
     let millis = epoch_offset.checked_add(mult_step).unwrap();
     log::debug!(

@@ -80,7 +80,8 @@ jobs:
             - name: Run server simulator
               shell: bash
               env:
-                  SIMULATOR_DURATION: 100
+                  SIMULATOR_DURATION: 10
+                  SIMULATOR_RUNS: 30
                   RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}
               run: |
                   while read -r feature; do \

@@ -156,6 +156,8 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
         .transpose()
         .unwrap();
 
+    log::debug!("run finished");
+
     Ok(())
 }
 

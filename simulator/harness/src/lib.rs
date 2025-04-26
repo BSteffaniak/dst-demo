@@ -3,7 +3,6 @@
 #![allow(clippy::multiple_crate_versions)]
 
 use std::{
-    any::Any,
     panic::AssertUnwindSafe,
     sync::{Arc, Mutex},
     time::{Duration, SystemTime},
@@ -152,130 +151,135 @@ fn run_info_end(
 /// * The contents of this function are wrapped in a `catch_unwind` call, so if
 ///   any panic happens, it will be wrapped into an error on the outer `Result`
 /// * If the `Sim` `step` returns an error, we return that in an Ok(Err(e))
-pub fn run_simulation(
-    bootstrap: &impl SimBootstrap,
-) -> Result<Result<(), Box<dyn std::error::Error>>, Box<dyn Any + Send>> {
-    let panic = Arc::new(Mutex::new(None));
-    std::panic::set_hook(Box::new({
-        let prev_hook = std::panic::take_hook();
-        let panic = panic.clone();
-        move |x| {
-            *panic.lock().unwrap() = Some(x.to_string());
-            if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
-                cancel_simulation();
+#[allow(clippy::too_many_lines)]
+pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::error::Error>> {
+    let runs = 1;
+
+    for _ in 0..runs {
+        let panic = Arc::new(Mutex::new(None));
+        std::panic::set_hook(Box::new({
+            let prev_hook = std::panic::take_hook();
+            let panic = panic.clone();
+            move |x| {
+                *panic.lock().unwrap() = Some(x.to_string());
+                if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
+                    cancel_simulation();
+                }
+                prev_hook(x);
             }
-            prev_hook(x);
-        }
-    }));
+        }));
 
-    ctrlc::set_handler(cancel_simulation).expect("Error setting Ctrl-C handler");
+        ctrlc::set_handler(cancel_simulation).expect("Error setting Ctrl-C handler");
 
-    let duration_secs = duration();
+        let duration_secs = duration();
 
-    STEP.store(1, std::sync::atomic::Ordering::SeqCst);
+        STEP.store(1, std::sync::atomic::Ordering::SeqCst);
 
-    let props = bootstrap.props();
+        let props = bootstrap.props();
 
-    println!(
-        "\n\
+        println!(
+            "\n\
         =========================== START ============================\n\
         Server simulator starting\n{}\n\
         ==============================================================\n",
-        run_info(&props)
-    );
+            run_info(&props)
+        );
 
-    bootstrap.init();
+        bootstrap.init();
 
-    let builder = bootstrap.build_sim(sim_builder());
-    #[cfg(feature = "random")]
-    let mut sim = builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
-    #[cfg(not(feature = "random"))]
-    let mut sim = builder.build();
+        let builder = bootstrap.build_sim(sim_builder());
+        #[cfg(feature = "random")]
+        let mut sim = builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
+        #[cfg(not(feature = "random"))]
+        let mut sim = builder.build();
 
-    let start = SystemTime::now();
+        let start = SystemTime::now();
 
-    bootstrap.on_start(&mut sim);
+        bootstrap.on_start(&mut sim);
 
-    let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let print_step = |sim: &Sim<'_>, step| {
-            #[allow(clippy::cast_precision_loss)]
-            if duration_secs < u64::MAX {
-                log::info!(
-                    "step {step} ({}) ({:.1}%)",
-                    sim.elapsed().as_millis().into_formatted(),
-                    SystemTime::now().duration_since(start).unwrap().as_millis() as f64
-                        / (duration_secs as f64 * 1000.0)
-                        * 100.0,
-                );
-            } else {
-                log::info!(
-                    "step {step} ({})",
-                    sim.elapsed().as_millis().into_formatted()
-                );
-            }
-        };
+        let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            let print_step = |sim: &Sim<'_>, step| {
+                #[allow(clippy::cast_precision_loss)]
+                if duration_secs < u64::MAX {
+                    log::info!(
+                        "step {step} ({}) ({:.1}%)",
+                        sim.elapsed().as_millis().into_formatted(),
+                        SystemTime::now().duration_since(start).unwrap().as_millis() as f64
+                            / (duration_secs as f64 * 1000.0)
+                            * 100.0,
+                    );
+                } else {
+                    log::info!(
+                        "step {step} ({})",
+                        sim.elapsed().as_millis().into_formatted()
+                    );
+                }
+            };
 
-        while !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
-            let step = STEP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            while !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
+                let step = STEP.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
 
-            if duration_secs < u64::MAX
-                && SystemTime::now().duration_since(start).unwrap().as_secs() >= duration_secs
-            {
-                print_step(&sim, step);
-                break;
-            }
+                if duration_secs < u64::MAX
+                    && SystemTime::now().duration_since(start).unwrap().as_secs() >= duration_secs
+                {
+                    print_step(&sim, step);
+                    break;
+                }
 
-            if step % 1000 == 0 {
-                print_step(&sim, step);
-            }
+                if step % 1000 == 0 {
+                    print_step(&sim, step);
+                }
 
-            bootstrap.on_step(&mut sim);
+                bootstrap.on_step(&mut sim);
 
-            match sim.step() {
-                Ok(..) => {}
-                Err(e) => {
-                    let message = e.to_string();
-                    if message.starts_with("Ran for duration: ")
-                        && message.ends_with(" without completing")
-                    {
-                        break;
+                match sim.step() {
+                    Ok(..) => {}
+                    Err(e) => {
+                        let message = e.to_string();
+                        if message.starts_with("Ran for duration: ")
+                            && message.ends_with(" without completing")
+                        {
+                            break;
+                        }
+                        return Err(e);
                     }
-                    return Err(e);
                 }
             }
-        }
 
-        if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
-            cancel_simulation();
-        }
+            if !SIMULATOR_CANCELLATION_TOKEN.is_cancelled() {
+                cancel_simulation();
+            }
 
-        Ok(())
-    }));
+            Ok(())
+        }));
 
-    bootstrap.on_end(&mut sim);
+        bootstrap.on_end(&mut sim);
 
-    let end = SystemTime::now();
-    let real_time_millis = end.duration_since(start).unwrap().as_millis();
-    let sim_time_millis = sim.elapsed().as_millis();
+        let end = SystemTime::now();
+        let real_time_millis = end.duration_since(start).unwrap().as_millis();
+        let sim_time_millis = sim.elapsed().as_millis();
 
-    println!(
-        "\n\
+        println!(
+            "\n\
         =========================== FINISH ===========================\n\
         Server simulator finished\n{}\n\
         ==============================================================",
-        run_info_end(
-            &props,
-            resp.as_ref().is_ok_and(Result::is_ok),
-            real_time_millis,
-            sim_time_millis,
-        )
-    );
+            run_info_end(
+                &props,
+                resp.as_ref().is_ok_and(Result::is_ok),
+                real_time_millis,
+                sim_time_millis,
+            )
+        );
 
-    if let Some(panic) = &*panic.lock().unwrap() {
-        eprintln!("{panic}");
+        if let Some(panic) = &*panic.lock().unwrap() {
+            eprintln!("{panic}");
+        }
+
+        resp.unwrap()?;
     }
 
-    resp
+    Ok(())
 }
 
 fn sim_builder() -> turmoil::Builder {

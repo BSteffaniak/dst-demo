@@ -7,7 +7,7 @@ use dst_demo_server::{
 use dst_demo_simulator_harness::{
     CancellableSim,
     plan::InteractionPlan as _,
-    time::simulator::STEP_MULTIPLIER,
+    time::simulator::step_multiplier,
     turmoil::{Sim, net::TcpStream},
 };
 use plan::{BankerInteractionPlan, Interaction};
@@ -46,12 +46,12 @@ pub fn start(sim: &mut Sim<'_>) {
                         duration.as_millis() as u64
                     } else {
                         0
-                    } + *STEP_MULTIPLIER * 1000;
+                    } + step_multiplier() * 1000;
 
                 tokio::select! {
                     resp = perform_interaction(&name, &server_addr, interaction, &plan) => {
                         resp?;
-                        tokio::time::sleep(std::time::Duration::from_secs(*STEP_MULTIPLIER * 60)).await;
+                        tokio::time::sleep(std::time::Duration::from_secs(step_multiplier() * 60)).await;
                     }
                     () = tokio::time::sleep(std::time::Duration::from_millis(interaction_timeout)) => {
                         return Err(Box::new(std::io::Error::new(
@@ -126,7 +126,7 @@ async fn perform_interaction(
             Ok(stream) => stream,
             Err(e) => {
                 log::debug!("[{name}] Failed to connect to server: {e:?}");
-                tokio::time::sleep(std::time::Duration::from_millis(*STEP_MULTIPLIER)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(step_multiplier())).await;
                 continue;
             }
         };

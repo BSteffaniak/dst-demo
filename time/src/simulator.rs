@@ -6,7 +6,7 @@ use std::{
 use dst_demo_random::non_uniform_distribute_i32;
 
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-pub static EPOCH_OFFSET: LazyLock<u64> = LazyLock::new(|| {
+static EPOCH_OFFSET: LazyLock<u64> = LazyLock::new(|| {
     let value = dst_demo_random::RNG.gen_range(1..100_000_000_000_000u64);
 
     std::env::var("SIMULATOR_EPOCH_OFFSET")
@@ -14,7 +14,7 @@ pub static EPOCH_OFFSET: LazyLock<u64> = LazyLock::new(|| {
         .map_or(value, |x| x.parse::<u64>().unwrap())
 });
 
-pub static STEP_MULTIPLIER: LazyLock<u64> = LazyLock::new(|| {
+static STEP_MULTIPLIER: LazyLock<u64> = LazyLock::new(|| {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let value = {
         let rng = &dst_demo_random::RNG;
@@ -26,6 +26,16 @@ pub static STEP_MULTIPLIER: LazyLock<u64> = LazyLock::new(|| {
         .ok()
         .map_or(value, |x| x.parse::<u64>().unwrap())
 });
+
+#[must_use]
+pub fn epoch_offset() -> u64 {
+    *EPOCH_OFFSET
+}
+
+#[must_use]
+pub fn step_multiplier() -> u64 {
+    *STEP_MULTIPLIER
+}
 
 /// # Panics
 ///

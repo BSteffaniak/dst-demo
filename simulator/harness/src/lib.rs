@@ -33,14 +33,14 @@ pub mod plan;
 fn run_info(props: &[(String, String)]) -> String {
     #[cfg(feature = "time")]
     let extra = {
-        use dst_demo_time::simulator::{EPOCH_OFFSET, STEP_MULTIPLIER};
+        use dst_demo_time::simulator::{epoch_offset, step_multiplier};
 
         format!(
             "\n\
             epoch_offset={epoch_offset}\n\
             step_multiplier={step_multiplier}",
-            epoch_offset = *EPOCH_OFFSET,
-            step_multiplier = *STEP_MULTIPLIER,
+            epoch_offset = epoch_offset(),
+            step_multiplier = step_multiplier(),
         )
     };
     #[cfg(not(feature = "time"))]
@@ -288,7 +288,7 @@ fn sim_builder() -> turmoil::Builder {
 
     #[cfg(feature = "time")]
     builder.tick_duration(Duration::from_millis(
-        *dst_demo_time::simulator::STEP_MULTIPLIER,
+        dst_demo_time::simulator::step_multiplier(),
     ));
 
     builder

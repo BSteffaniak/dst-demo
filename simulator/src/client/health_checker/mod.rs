@@ -1,9 +1,7 @@
-use std::sync::LazyLock;
-
 use dst_demo_simulator_harness::{
     CancellableSim as _,
     plan::InteractionPlan as _,
-    time::simulator::STEP_MULTIPLIER,
+    time::simulator::step_multiplier,
     turmoil::{Sim, net::TcpStream},
 };
 use plan::{HealthCheckInteractionPlan, Interaction};
@@ -20,7 +18,7 @@ pub fn start(sim: &mut Sim<'_>) {
         loop {
             while let Some(interaction) = plan.step() {
                 perform_interaction(interaction).await?;
-                tokio::time::sleep(std::time::Duration::from_secs(*STEP_MULTIPLIER * 60)).await;
+                tokio::time::sleep(std::time::Duration::from_secs(step_multiplier() * 60)).await;
             }
 
             plan.gen_interactions(1000);
@@ -46,16 +44,16 @@ async fn perform_interaction(interaction: &Interaction) -> Result<(), Box<dyn st
 }
 
 async fn health_check(host: &str) -> Result<(), Box<dyn std::error::Error>> {
-    static TIMEOUT: LazyLock<u64> = LazyLock::new(|| 10 * *STEP_MULTIPLIER);
+    let timeout = 10 * step_multiplier();
 
     tokio::select! {
         resp = assert_health(host) => {
             resp?;
         }
-        () = tokio::time::sleep(std::time::Duration::from_secs(*TIMEOUT)) => {
+        () = tokio::time::sleep(std::time::Duration::from_secs(timeout)) => {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
-                format!("Failed to get healthy response within {} seconds", *TIMEOUT)
+                format!("Failed to get healthy response within {timeout} seconds")
             )) as Box<dyn std::error::Error>);
         }
     }
@@ -70,7 +68,7 @@ async fn assert_health(host: &str) -> Result<(), Box<dyn std::error::Error>> {
             Ok(stream) => stream,
             Err(e) => {
                 log::debug!("[Health Client] Failed to connect to server: {e:?}");
-                tokio::time::sleep(std::time::Duration::from_millis(*STEP_MULTIPLIER)).await;
+                tokio::time::sleep(std::time::Duration::from_millis(step_multiplier())).await;
                 continue;
             }
         };

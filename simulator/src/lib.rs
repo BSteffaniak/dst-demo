@@ -43,7 +43,12 @@ pub fn reset_banker_count() -> u64 {
 /// * If the `BANKER_COUNT` `RwLock` fails to read from
 #[must_use]
 pub fn banker_count() -> u64 {
-    BANKER_COUNT.read().unwrap().unwrap()
+    let value = { *BANKER_COUNT.read().unwrap() };
+    value.unwrap_or_else(|| {
+        let value = gen_banker_count();
+        *BANKER_COUNT.write().unwrap() = Some(value);
+        value
+    })
 }
 
 #[derive(Debug, thiserror::Error)]

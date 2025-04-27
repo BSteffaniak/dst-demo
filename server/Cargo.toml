@@ -14,9 +14,6 @@ version     = "0.1.0"
 dst_demo_fs = { version = "0.1.0", path = "../fs", default-features = false, features = [
     "std",
 ] }
-dst_demo_random = { version = "0.1.0", path = "../random", default-features = false, features = [
-    "rand",
-] }
 dst_demo_tcp = { version = "0.1.0", path = "../tcp", default-features = false, features = [
     "tokio",
 ] }

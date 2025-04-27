@@ -11,7 +11,6 @@ use std::{
 };
 
 use bank::{Bank, LocalBank, TransactionId};
-use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
@@ -20,8 +19,6 @@ use tokio_util::sync::CancellationToken;
 
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
     LazyLock::new(CancellationToken::new);
-
-static RNG: LazyLock<Rng> = LazyLock::new(Rng::new);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -49,7 +46,6 @@ pub enum ServerAction {
     GetTransaction,
     CreateTransaction,
     VoidTransaction,
-    GenerateRandomNumber,
     Close,
     Exit,
 }
@@ -105,9 +101,6 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                             }
                             ServerAction::VoidTransaction => {
                                 void_transaction(&bank, &mut message, &mut write, &mut read).await
-                            }
-                            ServerAction::GenerateRandomNumber => {
-                                generate_random_number(&mut write).await
                             }
                             ServerAction::Close => {
                                 return;
@@ -284,9 +277,4 @@ async fn void_transaction(
 
 async fn health(stream: &mut (impl AsyncWrite + Unpin)) -> Result<(), Error> {
     write_message("healthy", stream).await
-}
-
-async fn generate_random_number(stream: &mut (impl AsyncWrite + Unpin)) -> Result<(), Error> {
-    let number = RNG.next_u64();
-    write_message(number.to_string(), stream).await
 }

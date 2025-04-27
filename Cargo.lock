@@ -299,6 +299,7 @@ dependencies = [
 name = "dst_demo_server"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "ctrlc",
  "dst_demo_fs",
  "dst_demo_tcp",

@@ -21,6 +21,7 @@ dst_demo_time = { version = "0.1.0", path = "../time", default-features = false,
     "std",
 ] }
 
+async-trait = { workspace = true }
 ctrlc = { workspace = true }
 log = { workspace = true }
 pretty_env_logger = { workspace = true }

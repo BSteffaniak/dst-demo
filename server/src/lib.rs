@@ -191,7 +191,7 @@ async fn list_transactions(
     writer: &mut (impl AsyncWrite + Unpin),
 ) -> Result<(), Error> {
     let message = {
-        let transactions = bank.list_transactions()?;
+        let transactions = bank.list_transactions().await?;
 
         if transactions.is_empty() {
             log::debug!("list_transactions: no transactions");
@@ -225,7 +225,7 @@ async fn get_transaction(
         .into());
     };
     let id = message.parse::<TransactionId>()?;
-    if let Some(transaction) = bank.get_transaction(id)? {
+    if let Some(transaction) = bank.get_transaction(id).await? {
         write_message(transaction.to_string(), writer).await?;
     } else {
         write_message("Transaction not found", writer).await?;
@@ -248,7 +248,9 @@ async fn create_transaction(
         )
         .into());
     };
-    let transaction = bank.create_transaction(Decimal::from_str(&message)?)?;
+    let transaction = bank
+        .create_transaction(Decimal::from_str(&message)?)
+        .await?;
     write_message(transaction.to_string(), writer).await?;
     Ok(())
 }
@@ -269,7 +271,7 @@ async fn void_transaction(
         .into());
     };
     let id = message.parse::<TransactionId>()?;
-    if let Some(transaction) = bank.void_transaction(id)? {
+    if let Some(transaction) = bank.void_transaction(id).await? {
         write_message(transaction.to_string(), writer).await?;
     } else {
         write_message("Transaction not found", writer).await?;
@@ -285,6 +287,6 @@ async fn get_balance(
     bank: &impl Bank,
     stream: &mut (impl AsyncWrite + Unpin),
 ) -> Result<(), Error> {
-    let balance = bank.get_balance()?;
+    let balance = bank.get_balance().await?;
     write_message(format!("${balance}"), stream).await
 }

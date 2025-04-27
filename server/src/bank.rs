@@ -3,14 +3,16 @@
 use std::{
     io::{Read as _, Write},
     path::PathBuf,
-    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
+    sync::Arc,
     time::SystemTime,
 };
 
+use async_trait::async_trait;
 use dst_demo_fs::sync::{File, OpenOptions};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
+use tokio::sync::{Mutex, RwLock, RwLockReadGuard};
 
 pub type TransactionId = i32;
 pub type BankAccountBalance = Decimal;
@@ -24,31 +26,34 @@ pub enum Error {
     SerdeJson(#[from] serde_json::Error),
 }
 
+#[async_trait]
 pub trait Bank: Send + Sync {
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to list the `Transaction`s
-    fn list_transactions(&self) -> Result<RwLockReadGuard<Vec<Transaction>>, Error>;
+    async fn list_transactions(
+        &self,
+    ) -> Result<tokio::sync::RwLockReadGuard<Vec<Transaction>>, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to get the `Transaction`
-    fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
+    async fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to create the `Transaction`
-    fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error>;
+    async fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to void the `Transaction`
-    fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
+    async fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to get the balance
-    fn get_balance(&self) -> Result<BankAccountBalance, Error>;
+    async fn get_balance(&self) -> Result<BankAccountBalance, Error>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,24 +155,25 @@ impl LocalBank {
     }
 }
 
+#[async_trait]
 impl Bank for LocalBank {
-    fn list_transactions(&self) -> Result<RwLockReadGuard<Vec<Transaction>>, Error> {
-        Ok(self.transactions.read().unwrap())
+    async fn list_transactions(&self) -> Result<RwLockReadGuard<Vec<Transaction>>, Error> {
+        Ok(self.transactions.read().await)
     }
 
-    fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
+    async fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
         Ok(self
             .transactions
             .read()
-            .unwrap()
+            .await
             .iter()
             .find(|x| x.id == id)
             .cloned())
     }
 
-    fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error> {
+    async fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error> {
         let id = {
-            let mut binding = self.current_id.write().unwrap();
+            let mut binding = self.current_id.write().await;
             let id = *binding;
             *binding += 1;
             id
@@ -183,7 +189,7 @@ impl Bank for LocalBank {
             created_at: seconds_since_epoch as CreateTime,
         };
         {
-            let binding = self.transactions.read().unwrap();
+            let binding = self.transactions.read().await;
             let last_transaction = binding.last();
             assert!(
                 last_transaction.is_none_or(|x| transaction.id == x.id + 1),
@@ -194,7 +200,7 @@ impl Bank for LocalBank {
             drop(binding);
         }
         {
-            let current_id = *self.current_id.read().unwrap();
+            let current_id = *self.current_id.read().await;
             assert!(
                 current_id > transaction.id,
                 "id went backwards from current_id={current_id} to {}",
@@ -214,19 +220,19 @@ impl Bank for LocalBank {
 
         let mut serialized = serde_json::to_string(&transaction)?;
         serialized.push('\n');
-        self.file.lock().unwrap().write_all(serialized.as_bytes())?;
+        self.file.lock().await.write_all(serialized.as_bytes())?;
 
-        *self.balance.write().unwrap() += transaction.amount;
-        self.transactions.write().unwrap().push(transaction.clone());
+        *self.balance.write().await += transaction.amount;
+        self.transactions.write().await.push(transaction.clone());
 
         Ok(transaction)
     }
 
-    fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
+    async fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
         let Some(existing) = self
             .transactions
             .read()
-            .unwrap()
+            .await
             .iter()
             .find(|x| x.id == id)
             .cloned()
@@ -236,7 +242,7 @@ impl Bank for LocalBank {
 
         let originally_created_at = existing.created_at;
 
-        let new_transaction = self.create_transaction(-existing.amount)?;
+        let new_transaction = self.create_transaction(-existing.amount).await?;
 
         assert!(
             new_transaction.created_at >= originally_created_at,
@@ -247,7 +253,7 @@ impl Bank for LocalBank {
         Ok(Some(new_transaction))
     }
 
-    fn get_balance(&self) -> Result<BankAccountBalance, Error> {
-        Ok(*self.balance.read().unwrap())
+    async fn get_balance(&self) -> Result<BankAccountBalance, Error> {
+        Ok(*self.balance.read().await)
     }
 }

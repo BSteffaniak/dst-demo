@@ -4,8 +4,8 @@
 
 use dst_demo_server_simulator::{banker_count, client, handle_actions, host, reset_banker_count};
 use dst_demo_simulator_harness::{
-    SimBootstrap, run_simulation,
-    turmoil::{self, Sim},
+    CancellableSim, SimBootstrap, run_simulation,
+    turmoil::{self},
 };
 
 pub struct Simulator;
@@ -24,7 +24,7 @@ impl SimBootstrap for Simulator {
         vec![("banker_count".to_string(), banker_count().to_string())]
     }
 
-    fn on_start(&self, sim: &mut Sim<'_>) {
+    fn on_start(&self, sim: &mut impl CancellableSim) {
         host::server::start(sim);
 
         client::health_checker::start(sim);
@@ -35,7 +35,7 @@ impl SimBootstrap for Simulator {
         }
     }
 
-    fn on_step(&self, sim: &mut Sim<'_>) {
+    fn on_step(&self, sim: &mut impl CancellableSim) {
         handle_actions(sim);
     }
 }

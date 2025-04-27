@@ -1,8 +1,6 @@
 use dst_demo_simulator_harness::{
-    CancellableSim as _,
-    plan::InteractionPlan as _,
-    time::simulator::step_multiplier,
-    turmoil::{Sim, net::TcpStream},
+    CancellableSim, plan::InteractionPlan as _, time::simulator::step_multiplier,
+    turmoil::net::TcpStream,
 };
 use plan::{HealthCheckInteractionPlan, Interaction};
 use tokio::io::AsyncWriteExt;
@@ -11,7 +9,7 @@ pub mod plan;
 
 use crate::read_message;
 
-pub fn start(sim: &mut Sim<'_>) {
+pub fn start(sim: &mut impl CancellableSim) {
     let mut plan = HealthCheckInteractionPlan::new().with_gen_interactions(1000);
 
     sim.client_until_cancelled("HealthCheck", async move {

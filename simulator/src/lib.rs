@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, LazyLock, Mutex, RwLock},
 };
 
-use dst_demo_simulator_harness::{random::RNG, turmoil::Sim};
+use dst_demo_simulator_harness::{CancellableSim, random::RNG};
 use tokio::io::AsyncReadExt;
 
 pub mod client;
@@ -71,7 +71,7 @@ pub fn queue_bounce(host: impl Into<String>) {
 /// # Panics
 ///
 /// * If `ACTIONS` `Mutex` fails to lock
-pub fn handle_actions(sim: &mut Sim<'_>) {
+pub fn handle_actions(sim: &mut impl CancellableSim) {
     let actions = ACTIONS.lock().unwrap().drain(..).collect::<Vec<_>>();
     for action in actions {
         match action {

@@ -8,10 +8,8 @@ use dst_demo_server::{
     bank::{Transaction, TransactionId},
 };
 use dst_demo_simulator_harness::{
-    CancellableSim,
-    plan::InteractionPlan as _,
-    time::simulator::step_multiplier,
-    turmoil::{Sim, net::TcpStream},
+    CancellableSim, plan::InteractionPlan as _, time::simulator::step_multiplier,
+    turmoil::net::TcpStream,
 };
 use plan::{BankerInteractionPlan, Interaction};
 use rust_decimal::Decimal;
@@ -30,7 +28,7 @@ pub fn reset_id() {
     ID.store(1, std::sync::atomic::Ordering::SeqCst);
 }
 
-pub fn start(sim: &mut Sim<'_>) {
+pub fn start(sim: &mut impl CancellableSim) {
     let server_addr = format!("{HOST}:{PORT}");
 
     let name = format!(

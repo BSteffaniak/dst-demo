@@ -46,6 +46,7 @@ pub enum ServerAction {
     GetTransaction,
     CreateTransaction,
     VoidTransaction,
+    GetBalance,
     Close,
     Exit,
 }
@@ -102,6 +103,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                             ServerAction::VoidTransaction => {
                                 void_transaction(&bank, &mut message, &mut write, &mut read).await
                             }
+                            ServerAction::GetBalance => get_balance(&bank, &mut write).await,
                             ServerAction::Close => {
                                 return;
                             }
@@ -277,4 +279,12 @@ async fn void_transaction(
 
 async fn health(stream: &mut (impl AsyncWrite + Unpin)) -> Result<(), Error> {
     write_message("healthy", stream).await
+}
+
+async fn get_balance(
+    bank: &impl Bank,
+    stream: &mut (impl AsyncWrite + Unpin),
+) -> Result<(), Error> {
+    let balance = bank.get_balance()?;
+    write_message(format!("${balance}"), stream).await
 }

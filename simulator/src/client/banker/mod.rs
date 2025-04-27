@@ -174,6 +174,14 @@ async fn perform_interaction(
                     continue;
                 }
             }
+            Interaction::GetBalance => {
+                if !get_balance(name, server_addr, addr, &mut stream).await {
+                    log::debug!(
+                        "[{name} {addr}->{server_addr}] perform_interaction: get_balance failed"
+                    );
+                    continue;
+                }
+            }
         }
 
         break;
@@ -400,6 +408,36 @@ async fn void_transaction(
     assert!(
         message == "Enter the transaction ID:",
         "Expected prompt for transaction ID, instead got:\n'{message}'"
+    );
+
+    true
+}
+
+async fn get_balance(name: &str, server_addr: &str, addr: &str, stream: &mut TcpStream) -> bool {
+    if !send_action(name, server_addr, addr, stream, ServerAction::GetBalance).await {
+        log::debug!("[{name} {addr}->{server_addr}] get_balance: failed to send");
+        return false;
+    }
+
+    let message = match read_message(&mut String::new(), Box::pin(stream)).await {
+        Ok(x) => x,
+        Err(e) => {
+            log::debug!("[{name} {addr}->{server_addr}] get_balance: failed to read: {e:?}");
+            return false;
+        }
+    };
+    let Some(message) = message else {
+        log::debug!("[{name} {addr}->{server_addr}] get_balance: failed to get response");
+        return false;
+    };
+
+    assert!(message.starts_with('$'), "Expected a monetary response");
+
+    let message = message.strip_prefix('$').unwrap();
+
+    assert!(
+        Decimal::from_str(message).is_ok(),
+        "Expected a decimal balance"
     );
 
     true

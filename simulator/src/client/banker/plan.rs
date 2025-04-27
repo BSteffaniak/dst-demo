@@ -84,6 +84,7 @@ pub enum Interaction {
     GetTransaction { id: TransactionId },
     CreateTransaction { amount: Decimal },
     VoidTransaction { id: TransactionId },
+    GetBalance,
 }
 
 impl InteractionPlan<Interaction> for BankerInteractionPlan {
@@ -141,6 +142,9 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
 
                     self.add_interaction(Interaction::VoidTransaction { id });
                 }
+                InteractionType::GetBalance => {
+                    self.add_interaction(Interaction::GetBalance);
+                }
             }
         }
         drop(rng);
@@ -151,6 +155,7 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
         match &interaction {
             Interaction::Sleep(..)
             | Interaction::ListTransactions
+            | Interaction::GetBalance
             | Interaction::GetTransaction { .. } => {}
             Interaction::CreateTransaction { amount } => {
                 self.context.transactions.push(Transaction {

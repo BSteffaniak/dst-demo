@@ -9,9 +9,11 @@ use std::{
 
 use dst_demo_fs::sync::{File, OpenOptions};
 use rust_decimal::Decimal;
+use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
 
 pub type TransactionId = i32;
+pub type BankAccountBalance = Decimal;
 pub type CreateTime = i32;
 
 #[derive(Debug, thiserror::Error)]
@@ -42,6 +44,11 @@ pub trait Bank: Send + Sync {
     ///
     /// * If the `Bank` implementation fails to void the `Transaction`
     fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
+
+    /// # Errors
+    ///
+    /// * If the `Bank` implementation fails to get the balance
+    fn get_balance(&self) -> Result<BankAccountBalance, Error>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,6 +118,7 @@ pub struct LocalBank {
     file: Arc<Mutex<File>>,
     transactions: Arc<RwLock<Vec<Transaction>>>,
     current_id: Arc<RwLock<TransactionId>>,
+    balance: Arc<RwLock<BankAccountBalance>>,
 }
 
 impl LocalBank {
@@ -137,6 +145,7 @@ impl LocalBank {
             file: Arc::new(Mutex::new(file)),
             current_id: Arc::new(RwLock::new(transactions.last().map_or(1, |x| x.id + 1))),
             transactions: Arc::new(RwLock::new(transactions)),
+            balance: Arc::new(RwLock::new(dec!(0.0))),
         })
     }
 }
@@ -207,7 +216,9 @@ impl Bank for LocalBank {
         serialized.push('\n');
         self.file.lock().unwrap().write_all(serialized.as_bytes())?;
 
+        *self.balance.write().unwrap() += transaction.amount;
         self.transactions.write().unwrap().push(transaction.clone());
+
         Ok(transaction)
     }
 
@@ -234,5 +245,9 @@ impl Bank for LocalBank {
         );
 
         Ok(Some(new_transaction))
+    }
+
+    fn get_balance(&self) -> Result<BankAccountBalance, Error> {
+        Ok(*self.balance.read().unwrap())
     }
 }

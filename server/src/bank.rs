@@ -3,6 +3,7 @@
 use std::{
     io::{Read as _, Write},
     path::PathBuf,
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
     time::SystemTime,
 };
 
@@ -25,22 +26,22 @@ pub trait Bank: Send + Sync {
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to list the `Transaction`s
-    fn list_transactions(&self) -> Result<&[Transaction], Error>;
+    fn list_transactions(&self) -> Result<RwLockReadGuard<Vec<Transaction>>, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to get the `Transaction`
-    fn get_transaction(&self, id: TransactionId) -> Result<Option<&Transaction>, Error>;
+    fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to create the `Transaction`
-    fn create_transaction(&mut self, amount: Decimal) -> Result<&Transaction, Error>;
+    fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error>;
 
     /// # Errors
     ///
     /// * If the `Bank` implementation fails to void the `Transaction`
-    fn void_transaction(&mut self, id: TransactionId) -> Result<Option<&Transaction>, Error>;
+    fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -50,7 +51,7 @@ pub struct Transaction {
     pub created_at: CreateTime,
 }
 
-impl std::fmt::Display for &Transaction {
+impl std::fmt::Display for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_fmt(format_args!(
             "id={} created_at={} amount=${:.2}",
@@ -105,10 +106,11 @@ impl std::str::FromStr for Transaction {
     }
 }
 
+#[derive(Clone)]
 pub struct LocalBank {
-    file: File,
-    transactions: Vec<Transaction>,
-    current_id: TransactionId,
+    file: Arc<Mutex<File>>,
+    transactions: Arc<RwLock<Vec<Transaction>>>,
+    current_id: Arc<RwLock<TransactionId>>,
 }
 
 impl LocalBank {
@@ -132,25 +134,35 @@ impl LocalBank {
             .collect::<Result<Vec<Transaction>, _>>()?;
 
         Ok(Self {
-            file,
-            current_id: transactions.last().map_or(1, |x| x.id + 1),
-            transactions,
+            file: Arc::new(Mutex::new(file)),
+            current_id: Arc::new(RwLock::new(transactions.last().map_or(1, |x| x.id + 1))),
+            transactions: Arc::new(RwLock::new(transactions)),
         })
     }
 }
 
 impl Bank for LocalBank {
-    fn list_transactions(&self) -> Result<&[Transaction], Error> {
-        Ok(&self.transactions)
+    fn list_transactions(&self) -> Result<RwLockReadGuard<Vec<Transaction>>, Error> {
+        Ok(self.transactions.read().unwrap())
     }
 
-    fn get_transaction(&self, id: TransactionId) -> Result<Option<&Transaction>, Error> {
-        Ok(self.transactions.iter().find(|x| x.id == id))
+    fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
+        Ok(self
+            .transactions
+            .read()
+            .unwrap()
+            .iter()
+            .find(|x| x.id == id)
+            .cloned())
     }
 
-    fn create_transaction(&mut self, amount: Decimal) -> Result<&Transaction, Error> {
-        let id = self.current_id;
-        self.current_id += 1;
+    fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error> {
+        let id = {
+            let mut binding = self.current_id.write().unwrap();
+            let id = *binding;
+            *binding += 1;
+            id
+        };
         let now = dst_demo_time::now();
         let seconds_since_epoch = now
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -161,20 +173,25 @@ impl Bank for LocalBank {
             amount,
             created_at: seconds_since_epoch as CreateTime,
         };
-        assert!(
-            self.transactions
-                .last()
-                .is_none_or(|x| transaction.id == x.id + 1),
-            "expected id to be last transaction.id + 1 last_transaction.id={} to transaction_id={}",
-            self.transactions.last().unwrap().id,
-            transaction.id,
-        );
-        assert!(
-            self.current_id > transaction.id,
-            "id went backwards from current_id={} to {}",
-            self.current_id,
-            transaction.id,
-        );
+        {
+            let binding = self.transactions.read().unwrap();
+            let last_transaction = binding.last();
+            assert!(
+                last_transaction.is_none_or(|x| transaction.id == x.id + 1),
+                "expected id to be last transaction.id + 1 last_transaction.id={} to transaction_id={}",
+                last_transaction.unwrap().id,
+                transaction.id,
+            );
+            drop(binding);
+        }
+        {
+            let current_id = *self.current_id.read().unwrap();
+            assert!(
+                current_id > transaction.id,
+                "id went backwards from current_id={current_id} to {}",
+                transaction.id,
+            );
+        }
         assert!(
             transaction.created_at > 0,
             "created_at={} must be > 0",
@@ -188,14 +205,21 @@ impl Bank for LocalBank {
 
         let mut serialized = serde_json::to_string(&transaction)?;
         serialized.push('\n');
-        self.file.write_all(serialized.as_bytes())?;
+        self.file.lock().unwrap().write_all(serialized.as_bytes())?;
 
-        self.transactions.push(transaction);
-        Ok(self.transactions.last().unwrap())
+        self.transactions.write().unwrap().push(transaction.clone());
+        Ok(transaction)
     }
 
-    fn void_transaction(&mut self, id: TransactionId) -> Result<Option<&Transaction>, Error> {
-        let Some(existing) = self.transactions.iter().find(|x| x.id == id) else {
+    fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
+        let Some(existing) = self
+            .transactions
+            .read()
+            .unwrap()
+            .iter()
+            .find(|x| x.id == id)
+            .cloned()
+        else {
             return Ok(None);
         };
 

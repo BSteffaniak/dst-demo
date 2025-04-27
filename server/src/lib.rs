@@ -7,7 +7,7 @@ pub mod bank;
 use std::{
     str::{self, FromStr as _},
     string::FromUtf8Error,
-    sync::{Arc, LazyLock},
+    sync::LazyLock,
 };
 
 use bank::{Bank, LocalBank, TransactionId};
@@ -15,10 +15,7 @@ use dst_demo_random::Rng;
 use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
-use tokio::{
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    sync::RwLock,
-};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
 
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
@@ -75,7 +72,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let listener = TcpListener::bind(&addr).await?;
     log::info!("Server listening on {addr}");
 
-    let bank = Arc::new(RwLock::new(LocalBank::new()?));
+    let bank = LocalBank::new()?;
 
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {
@@ -98,34 +95,16 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                         let resp = match action {
                             ServerAction::Health => health(&mut write).await,
                             ServerAction::ListTransactions => {
-                                list_transactions(&*bank.read().await, &mut write).await
+                                list_transactions(&bank, &mut write).await
                             }
                             ServerAction::GetTransaction => {
-                                get_transaction(
-                                    &*bank.read().await,
-                                    &mut message,
-                                    &mut write,
-                                    &mut read,
-                                )
-                                .await
+                                get_transaction(&bank, &mut message, &mut write, &mut read).await
                             }
                             ServerAction::CreateTransaction => {
-                                create_transaction(
-                                    &mut *bank.write().await,
-                                    &mut message,
-                                    &mut write,
-                                    &mut read,
-                                )
-                                .await
+                                create_transaction(&bank, &mut message, &mut write, &mut read).await
                             }
                             ServerAction::VoidTransaction => {
-                                void_transaction(
-                                    &mut *bank.write().await,
-                                    &mut message,
-                                    &mut write,
-                                    &mut read,
-                                )
-                                .await
+                                void_transaction(&bank, &mut message, &mut write, &mut read).await
                             }
                             ServerAction::GenerateRandomNumber => {
                                 generate_random_number(&mut write).await
@@ -216,17 +195,19 @@ async fn list_transactions(
     bank: &impl Bank,
     writer: &mut (impl AsyncWrite + Unpin),
 ) -> Result<(), Error> {
-    let transactions = bank.list_transactions()?;
+    let message = {
+        let transactions = bank.list_transactions()?;
 
-    if transactions.is_empty() {
-        log::debug!("list_transactions: no transactions");
-    }
+        if transactions.is_empty() {
+            log::debug!("list_transactions: no transactions");
+        }
 
-    let message = transactions
-        .iter()
-        .map(|x| x.to_string())
-        .collect::<Vec<_>>()
-        .join("\n");
+        transactions
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
 
     write_message(message, writer).await?;
 
@@ -258,7 +239,7 @@ async fn get_transaction(
 }
 
 async fn create_transaction(
-    bank: &mut impl Bank,
+    bank: &impl Bank,
     message: &mut String,
     writer: &mut (impl AsyncWrite + Unpin),
     reader: &mut (impl AsyncRead + Unpin),
@@ -278,7 +259,7 @@ async fn create_transaction(
 }
 
 async fn void_transaction(
-    bank: &mut impl Bank,
+    bank: &impl Bank,
     message: &mut String,
     writer: &mut (impl AsyncWrite + Unpin),
     reader: &mut (impl AsyncRead + Unpin),

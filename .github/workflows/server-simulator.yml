@@ -80,6 +80,7 @@ jobs:
             - name: Run server simulator
               shell: bash
               env:
+                  NO_TUI: 1
                   SIMULATOR_DURATION: 10
                   SIMULATOR_RUNS: 30
                   RUST_LOG: ${{ runner.debug && 'trace' || 'debug' }}

@@ -4,10 +4,7 @@
 
 use std::{
     cell::RefCell,
-    sync::{
-        LazyLock, RwLock,
-        atomic::{AtomicU32, AtomicU64},
-    },
+    sync::{LazyLock, RwLock, atomic::AtomicU64},
 };
 
 use tokio_util::sync::CancellationToken;
@@ -15,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 static THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
 
 thread_local! {
-    static STEP: RefCell<AtomicU32> = const { RefCell::new(AtomicU32::new(1)) };
+    static STEP: RefCell<AtomicU64> = const { RefCell::new(AtomicU64::new(1)) };
     static THREAD_ID: RefCell<u64> = RefCell::new(THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
 }
 
@@ -29,12 +26,12 @@ pub fn reset_step() {
 }
 
 #[must_use]
-pub fn current_step() -> u32 {
+pub fn current_step() -> u64 {
     STEP.with_borrow(|x| x.load(std::sync::atomic::Ordering::SeqCst))
 }
 
 #[must_use]
-pub fn step_next() -> u32 {
+pub fn step_next() -> u64 {
     STEP.with_borrow(|x| x.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
 }
 

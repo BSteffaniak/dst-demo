@@ -82,7 +82,7 @@ pub fn step_multiplier() -> u64 {
 pub fn now() -> SystemTime {
     let epoch_offset = epoch_offset();
     let step_multiplier = step_multiplier();
-    let step = u64::from(dst_demo_simulator_utils::current_step());
+    let step = dst_demo_simulator_utils::current_step();
     let mult_step = step.checked_mul(step_multiplier).unwrap();
     let millis = epoch_offset.checked_add(mult_step).unwrap();
     log::debug!(

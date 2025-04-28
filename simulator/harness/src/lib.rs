@@ -217,6 +217,11 @@ pub fn end_sim() {
 fn init_pretty_env_logger() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    #[cfg(feature = "tui")]
+    if USE_TUI {
+        return;
+    }
+
     pretty_env_logger::formatted_builder()
         .parse_default_env()
         .format(|buf, record| {
@@ -314,7 +319,14 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
     init_pretty_env_logger();
 
     #[cfg(feature = "tui")]
-    let tui_handle = if USE_TUI { Some(tui::spawn()) } else { None };
+    let display_state = tui::DisplayState::new();
+
+    #[cfg(feature = "tui")]
+    let tui_handle = if USE_TUI {
+        Some(tui::spawn(display_state.clone()))
+    } else {
+        None
+    };
 
     let runs = *RUNS;
 
@@ -322,12 +334,19 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
 
     log::debug!("Running simulation with max_parallel={max_parallel}");
 
-    let sim_orchestrator = SimOrchestrator::new(bootstrap, runs, max_parallel);
+    let sim_orchestrator = SimOrchestrator::new(
+        bootstrap,
+        runs,
+        max_parallel,
+        #[cfg(feature = "tui")]
+        display_state.clone(),
+    );
 
     sim_orchestrator.start()?;
 
     #[cfg(feature = "tui")]
     if let Some(tui_handle) = tui_handle {
+        display_state.exit();
         tui_handle.join().unwrap()?;
     }
 
@@ -338,14 +357,23 @@ struct SimOrchestrator<B: SimBootstrap> {
     bootstrap: B,
     runs: u64,
     max_parallel: u64,
+    #[cfg(feature = "tui")]
+    display_state: tui::DisplayState,
 }
 
 impl<B: SimBootstrap> SimOrchestrator<B> {
-    const fn new(bootstrap: B, runs: u64, max_parallel: u64) -> Self {
+    const fn new(
+        bootstrap: B,
+        runs: u64,
+        max_parallel: u64,
+        #[cfg(feature = "tui")] display_state: tui::DisplayState,
+    ) -> Self {
         Self {
             bootstrap,
             runs,
             max_parallel,
+            #[cfg(feature = "tui")]
+            display_state,
         }
     }
 
@@ -369,11 +397,15 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
         let bootstrap = Arc::new(self.bootstrap);
 
         if self.max_parallel == 0 {
-            for run_index in 0..self.runs {
-                let simulation = Simulation::new(&*bootstrap);
+            for run_number in 1..=self.runs {
+                let simulation = Simulation::new(
+                    &*bootstrap,
+                    #[cfg(feature = "tui")]
+                    self.display_state.clone(),
+                );
 
                 simulation
-                    .run(run_index, None, &panic)
+                    .run(run_number, None, &panic)
                     .map_err(|e| e.to_string())?;
 
                 if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
@@ -390,10 +422,16 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                 let bootstrap = bootstrap.clone();
                 let panic = panic.clone();
                 let runs = self.runs;
+                #[cfg(feature = "tui")]
+                let display_state = self.display_state.clone();
 
                 let handle = std::thread::spawn(move || {
                     let thread_id = thread_id();
-                    let simulation = Simulation::new(&*bootstrap);
+                    let simulation = Simulation::new(
+                        &*bootstrap,
+                        #[cfg(feature = "tui")]
+                        display_state.clone(),
+                    );
 
                     loop {
                         if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
@@ -440,21 +478,34 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
 }
 
 struct Simulation<'a, B: SimBootstrap> {
+    #[cfg(feature = "tui")]
+    display_state: tui::DisplayState,
     bootstrap: &'a B,
 }
 
 impl<'a, B: SimBootstrap> Simulation<'a, B> {
-    const fn new(bootstrap: &'a B) -> Self {
-        Self { bootstrap }
+    const fn new(
+        bootstrap: &'a B,
+        #[cfg(feature = "tui")] display_state: tui::DisplayState,
+    ) -> Self {
+        Self {
+            #[cfg(feature = "tui")]
+            display_state,
+            bootstrap,
+        }
     }
 
     #[allow(clippy::too_many_lines)]
     fn run(
         &self,
-        run_index: u64,
+        run_number: u64,
         thread_id: Option<u64>,
         panic: &Arc<Mutex<Option<String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        if run_number > 1 {
+            dst_demo_random::simulator::reset_seed();
+        }
+
         dst_demo_random::simulator::reset_rng();
         #[cfg(feature = "fs")]
         dst_demo_fs::simulator::reset_fs();
@@ -523,10 +574,14 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             =========================== START ============================\n\
             Server simulator starting\n{}\n\
             ==============================================================\n",
-            run_info(run_index, &props)
+            run_info(run_number, &props)
         ));
 
         let start = SystemTime::now();
+
+        #[cfg(feature = "tui")]
+        self.display_state
+            .update_sim_progress(thread_id.unwrap_or(1), run_number, 0.0);
 
         self.bootstrap.on_start(&mut managed_sim);
 
@@ -534,22 +589,25 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             let print_step = |sim: &Sim<'_>, step| {
                 #[allow(clippy::cast_precision_loss)]
                 if duration < Duration::MAX {
+                    let progress = SystemTime::now().duration_since(start).unwrap().as_millis()
+                        as f64
+                        / (duration_secs as f64 * 1000.0);
+
+                    #[cfg(feature = "tui")]
+                    self.display_state.update_sim_progress(
+                        thread_id.unwrap_or(1),
+                        run_number,
+                        progress,
+                    );
+
                     log::info!(
-                        "{}step {step} ({}) ({:.1}%)",
-                        thread_id
-                            .map(|x| format!("[thread {x}] "))
-                            .unwrap_or_default(),
+                        "step {step} ({}) ({:.1}%)",
                         sim.elapsed().as_millis().into_formatted(),
-                        SystemTime::now().duration_since(start).unwrap().as_millis() as f64
-                            / (duration_secs as f64 * 1000.0)
-                            * 100.0,
+                        progress * 100.0,
                     );
                 } else {
                     log::info!(
-                        "{}step {step} ({})",
-                        thread_id
-                            .map(|x| format!("[thread {x}] "))
-                            .unwrap_or_default(),
+                        "step {step} ({})",
                         sim.elapsed().as_millis().into_formatted()
                     );
                 }
@@ -563,12 +621,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                         && SystemTime::now().duration_since(start).unwrap().as_secs()
                             >= duration_secs
                     {
-                        log::debug!(
-                            "{}sim ran for {duration_secs} seconds. stopping",
-                            thread_id
-                                .map(|x| format!("[thread {x}] "))
-                                .unwrap_or_default(),
-                        );
+                        log::debug!("sim ran for {duration_secs} seconds. stopping",);
                         print_step(&managed_sim.sim, step);
                         cancel_simulation();
                     }
@@ -583,12 +636,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 match managed_sim.sim.step() {
                     Ok(completed) => {
                         if completed {
-                            log::debug!(
-                                "{}sim completed",
-                                thread_id
-                                    .map(|x| format!("[thread {x}] "))
-                                    .unwrap_or_default(),
-                            );
+                            log::debug!("sim completed");
                             break;
                         }
                     }
@@ -607,6 +655,8 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             Ok(())
         }));
 
+        #[cfg(feature = "tui")]
+        self.display_state.run_completed();
         self.bootstrap.on_end(&mut managed_sim);
 
         let end = SystemTime::now();
@@ -623,7 +673,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             Server simulator finished\n{}\n\
             ==============================================================",
             run_info_end(
-                run_index,
+                run_number,
                 &props,
                 resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none(),
                 real_time_millis,
@@ -640,8 +690,6 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
             return Ok(());
         }
-
-        dst_demo_random::simulator::reset_seed();
 
         Ok(())
     }

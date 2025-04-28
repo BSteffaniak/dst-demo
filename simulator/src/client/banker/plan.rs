@@ -92,7 +92,7 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
         #[allow(clippy::cast_possible_truncation)]
         if let Some(item) = self.plan.get(self.step as usize) {
             self.step += 1;
-            log::debug!("step: {}", self.step);
+            log::trace!("step: {}", self.step);
             Some(item)
         } else {
             None

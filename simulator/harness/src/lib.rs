@@ -37,6 +37,8 @@ pub mod plan;
 #[cfg(feature = "tui")]
 mod tui;
 
+const USE_TUI: bool = cfg!(feature = "tui") && std::option_env!("NO_TUI").is_none();
+
 static RUNS: LazyLock<u64> = LazyLock::new(|| {
     std::env::var("SIMULATOR_RUNS")
         .ok()
@@ -46,11 +48,11 @@ static RUNS: LazyLock<u64> = LazyLock::new(|| {
 fn log_message(msg: impl Into<String>) {
     let msg = msg.into();
 
-    #[cfg(feature = "tui")]
-    log::info!("{msg}");
-
-    #[cfg(not(feature = "tui"))]
-    println!("{msg}");
+    if USE_TUI {
+        log::info!("{msg}");
+    } else {
+        println!("{msg}");
+    }
 }
 
 fn run_info(run_index: u64, props: &[(String, String)]) -> String {
@@ -238,7 +240,7 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
     ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
 
     #[cfg(feature = "tui")]
-    let tui_handle = tui::spawn();
+    let tui_handle = if USE_TUI { Some(tui::spawn()) } else { None };
 
     let runs = *RUNS;
 
@@ -251,7 +253,9 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
     sim_orchestrator.start()?;
 
     #[cfg(feature = "tui")]
-    tui_handle.join().unwrap()?;
+    if let Some(tui_handle) = tui_handle {
+        tui_handle.join().unwrap()?;
+    }
 
     Ok(())
 }

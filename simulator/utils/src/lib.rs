@@ -6,17 +6,6 @@ use std::sync::{LazyLock, RwLock, atomic::AtomicU32};
 
 use tokio_util::sync::CancellationToken;
 
-static DURATION: LazyLock<u64> = LazyLock::new(|| {
-    std::env::var("SIMULATOR_DURATION")
-        .ok()
-        .map_or(u64::MAX, |x| x.parse::<u64>().unwrap())
-});
-
-#[must_use]
-pub fn duration() -> u64 {
-    *DURATION
-}
-
 static STEP: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(1));
 
 pub fn reset_step() {

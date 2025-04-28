@@ -9,7 +9,7 @@ use std::{
 };
 
 use dst_demo_simulator_utils::{
-    cancel_simulation, duration, reset_simulator_cancellation_token, reset_step,
+    cancel_simulation, reset_simulator_cancellation_token, reset_step,
     simulator_cancellation_token, step_next,
 };
 use formatting::TimeFormat as _;
@@ -226,19 +226,54 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
         reset_simulator_cancellation_token();
         reset_step();
 
-        let duration_secs = duration();
-
         bootstrap.init();
 
-        let builder: turmoil::Builder = bootstrap.build_sim(sim_builder()).into();
+        let builder = bootstrap.build_sim(sim_builder());
+        let mut builder_props = vec![
+            (
+                "tick_duration".to_string(),
+                builder.tick_duration.as_millis().to_string(),
+            ),
+            ("fail_rate".to_string(), builder.fail_rate.to_string()),
+            ("repair_rate".to_string(), builder.repair_rate.to_string()),
+            ("tcp_capacity".to_string(), builder.tcp_capacity.to_string()),
+            ("udp_capacity".to_string(), builder.udp_capacity.to_string()),
+            (
+                "enable_random_order".to_string(),
+                builder.enable_random_order.to_string(),
+            ),
+            (
+                "min_message_latency".to_string(),
+                builder.min_message_latency.as_millis().to_string(),
+            ),
+            (
+                "max_message_latency".to_string(),
+                builder.max_message_latency.as_millis().to_string(),
+            ),
+            (
+                "duration".to_string(),
+                if builder.duration == Duration::MAX {
+                    "forever".to_string()
+                } else {
+                    builder.duration.as_secs().to_string()
+                },
+            ),
+        ];
+
+        let duration = builder.duration;
+        let duration_secs = duration.as_secs();
+
+        let turmoil_builder: turmoil::Builder = builder.into();
         #[cfg(feature = "random")]
-        let sim = builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
+        let sim = turmoil_builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
         #[cfg(not(feature = "random"))]
-        let sim = builder.build();
+        let sim = turmoil_builder.build();
 
         let mut managed_sim = ManagedSim::new(sim);
 
         let props = bootstrap.props();
+        builder_props.extend(props);
+        let props = builder_props;
 
         println!(
             "\n\
@@ -255,7 +290,7 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
         let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
             let print_step = |sim: &Sim<'_>, step| {
                 #[allow(clippy::cast_precision_loss)]
-                if duration_secs < u64::MAX {
+                if duration < Duration::MAX {
                     log::info!(
                         "step {step} ({}) ({:.1}%)",
                         sim.elapsed().as_millis().into_formatted(),
@@ -275,10 +310,11 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
                 if !simulator_cancellation_token().is_cancelled() {
                     let step = step_next();
 
-                    if duration_secs < u64::MAX
+                    if duration < Duration::MAX
                         && SystemTime::now().duration_since(start).unwrap().as_secs()
                             >= duration_secs
                     {
+                        log::debug!("sim ran for {duration_secs} seconds. stopping");
                         print_step(&managed_sim.sim, step);
                         cancel_simulation();
                     }
@@ -437,7 +473,7 @@ impl From<SimBuilder> for turmoil::Builder {
             .udp_capacity(value.udp_capacity.try_into().unwrap())
             .min_message_latency(value.min_message_latency)
             .max_message_latency(value.max_message_latency)
-            .simulation_duration(value.duration)
+            .simulation_duration(Duration::MAX)
             .tick_duration(value.tick_duration);
 
         if value.enable_random_order {
@@ -449,6 +485,12 @@ impl From<SimBuilder> for turmoil::Builder {
 }
 
 fn sim_builder() -> SimBuilder {
+    static DURATION: LazyLock<u64> = LazyLock::new(|| {
+        std::env::var("SIMULATOR_DURATION")
+            .ok()
+            .map_or(u64::MAX, |x| x.parse::<u64>().unwrap())
+    });
+
     let mut builder = SimBuilder::new();
 
     builder
@@ -457,7 +499,7 @@ fn sim_builder() -> SimBuilder {
         .tcp_capacity(64)
         .udp_capacity(64)
         .enable_random_order(true)
-        .duration(Duration::MAX);
+        .duration(Duration::from_secs(*DURATION));
 
     #[cfg(feature = "time")]
     builder.tick_duration(Duration::from_millis(

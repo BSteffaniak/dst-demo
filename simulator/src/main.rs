@@ -3,20 +3,17 @@
 #![allow(clippy::multiple_crate_versions)]
 
 use dst_demo_server_simulator::{banker_count, client, handle_actions, host, reset_banker_count};
-use dst_demo_simulator_harness::{
-    CancellableSim, SimBootstrap, run_simulation,
-    turmoil::{self},
-};
+use dst_demo_simulator_harness::{CancellableSim, SimBootstrap, SimBuilder, run_simulation};
 
 pub struct Simulator;
 
 impl SimBootstrap for Simulator {
-    fn build_sim(&self, mut builder: turmoil::Builder) -> turmoil::Builder {
+    fn build_sim(&self, mut builder: SimBuilder) -> SimBuilder {
         reset_banker_count();
         client::banker::reset_id();
 
         let tcp_capacity = std::cmp::max(banker_count(), 1) * 64;
-        builder.tcp_capacity(usize::try_from(tcp_capacity).unwrap());
+        builder.tcp_capacity(tcp_capacity);
         builder
     }
 

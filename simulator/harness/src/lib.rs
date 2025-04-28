@@ -230,7 +230,7 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
 
         bootstrap.init();
 
-        let builder = bootstrap.build_sim(sim_builder());
+        let builder: turmoil::Builder = bootstrap.build_sim(sim_builder()).into();
         #[cfg(feature = "random")]
         let sim = builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
         #[cfg(not(feature = "random"))]
@@ -352,13 +352,112 @@ pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::
     Ok(())
 }
 
-fn sim_builder() -> turmoil::Builder {
-    let mut builder = turmoil::Builder::new();
+pub struct SimBuilder {
+    fail_rate: f64,
+    repair_rate: f64,
+    tcp_capacity: u64,
+    udp_capacity: u64,
+    enable_random_order: bool,
+    min_message_latency: Duration,
+    max_message_latency: Duration,
+    duration: Duration,
+    tick_duration: Duration,
+}
+
+impl SimBuilder {
+    const fn new() -> Self {
+        Self {
+            fail_rate: 0.0,
+            repair_rate: 1.0,
+            tcp_capacity: 64,
+            udp_capacity: 64,
+            enable_random_order: false,
+            min_message_latency: Duration::from_millis(0),
+            max_message_latency: Duration::from_millis(1000),
+            duration: Duration::MAX,
+            tick_duration: Duration::from_millis(1),
+        }
+    }
+
+    pub const fn fail_rate(&mut self, fail_rate: f64) -> &mut Self {
+        self.fail_rate = fail_rate;
+        self
+    }
+
+    pub const fn repair_rate(&mut self, repair_rate: f64) -> &mut Self {
+        self.repair_rate = repair_rate;
+        self
+    }
+
+    pub const fn tcp_capacity(&mut self, tcp_capacity: u64) -> &mut Self {
+        self.tcp_capacity = tcp_capacity;
+        self
+    }
+
+    pub const fn udp_capacity(&mut self, udp_capacity: u64) -> &mut Self {
+        self.udp_capacity = udp_capacity;
+        self
+    }
+
+    pub const fn enable_random_order(&mut self, enable_random_order: bool) -> &mut Self {
+        self.enable_random_order = enable_random_order;
+        self
+    }
+
+    pub const fn min_message_latency(&mut self, min_message_latency: Duration) -> &mut Self {
+        self.min_message_latency = min_message_latency;
+        self
+    }
+
+    pub const fn max_message_latency(&mut self, max_message_latency: Duration) -> &mut Self {
+        self.max_message_latency = max_message_latency;
+        self
+    }
+
+    pub const fn duration(&mut self, duration: Duration) -> &mut Self {
+        self.duration = duration;
+        self
+    }
+
+    pub const fn tick_duration(&mut self, tick_duration: Duration) -> &mut Self {
+        self.tick_duration = tick_duration;
+        self
+    }
+}
+
+#[allow(clippy::fallible_impl_from)]
+impl From<SimBuilder> for turmoil::Builder {
+    fn from(value: SimBuilder) -> Self {
+        let mut builder = Self::new();
+
+        builder
+            .fail_rate(value.fail_rate)
+            .repair_rate(value.repair_rate)
+            .tcp_capacity(value.tcp_capacity.try_into().unwrap())
+            .udp_capacity(value.udp_capacity.try_into().unwrap())
+            .min_message_latency(value.min_message_latency)
+            .max_message_latency(value.max_message_latency)
+            .simulation_duration(value.duration)
+            .tick_duration(value.tick_duration);
+
+        if value.enable_random_order {
+            builder.enable_random_order();
+        }
+
+        builder
+    }
+}
+
+fn sim_builder() -> SimBuilder {
+    let mut builder = SimBuilder::new();
 
     builder
         .fail_rate(0.0)
         .repair_rate(1.0)
-        .simulation_duration(Duration::MAX);
+        .tcp_capacity(64)
+        .udp_capacity(64)
+        .enable_random_order(true)
+        .duration(Duration::MAX);
 
     #[cfg(feature = "time")]
     builder.tick_duration(Duration::from_millis(
@@ -375,7 +474,7 @@ pub trait SimBootstrap {
     }
 
     #[must_use]
-    fn build_sim(&self, builder: turmoil::Builder) -> turmoil::Builder {
+    fn build_sim(&self, builder: SimBuilder) -> SimBuilder {
         builder
     }
 

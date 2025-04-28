@@ -558,10 +558,12 @@ impl From<SimBuilder> for turmoil::Builder {
 }
 
 fn sim_builder() -> SimBuilder {
-    static DURATION: LazyLock<u64> = LazyLock::new(|| {
+    static DURATION: LazyLock<Duration> = LazyLock::new(|| {
         std::env::var("SIMULATOR_DURATION")
             .ok()
-            .map_or(u64::MAX, |x| x.parse::<u64>().unwrap())
+            .map_or(Duration::MAX, |x| {
+                Duration::from_secs(x.parse::<u64>().unwrap())
+            })
     });
 
     let mut builder = SimBuilder::new();
@@ -578,7 +580,7 @@ fn sim_builder() -> SimBuilder {
         .max_message_latency(Duration::from_millis(
             RNG.gen_range(min_message_latency..2000),
         ))
-        .duration(Duration::from_secs(*DURATION));
+        .duration(*DURATION);
 
     #[cfg(feature = "time")]
     builder.tick_duration(Duration::from_millis(

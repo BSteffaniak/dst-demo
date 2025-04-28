@@ -555,7 +555,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         }
 
         let duration = builder.duration;
-        let duration_secs = duration.as_secs();
+        let duration_steps = duration.as_millis();
 
         let turmoil_builder: turmoil::Builder = builder.into();
         #[cfg(feature = "random")]
@@ -589,9 +589,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             let print_step = |sim: &Sim<'_>, step| {
                 #[allow(clippy::cast_precision_loss)]
                 if duration < Duration::MAX {
-                    let progress = SystemTime::now().duration_since(start).unwrap().as_millis()
-                        as f64
-                        / (duration_secs as f64 * 1000.0);
+                    let progress = step as f64 / duration_steps as f64;
 
                     #[cfg(feature = "tui")]
                     self.display_state.update_sim_progress(
@@ -617,13 +615,11 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 if !is_simulator_cancelled() {
                     let step = step_next();
 
-                    if duration < Duration::MAX
-                        && SystemTime::now().duration_since(start).unwrap().as_secs()
-                            >= duration_secs
-                    {
-                        log::debug!("sim ran for {duration_secs} seconds. stopping",);
+                    if duration < Duration::MAX && u128::from(step) >= duration_steps {
+                        log::debug!("sim ran for {duration_steps} steps. stopping");
                         print_step(&managed_sim.sim, step);
                         cancel_simulation();
+                        break;
                     }
 
                     if step % 1000 == 0 {

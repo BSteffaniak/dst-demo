@@ -16,15 +16,15 @@ static INITIAL_SEED: LazyLock<u64> = LazyLock::new(|| {
     )
 });
 
+static INITIAL_RNG: LazyLock<Mutex<SmallRng>> =
+    LazyLock::new(|| Mutex::new(SmallRng::seed_from_u64(*INITIAL_SEED)));
+
 #[must_use]
 pub fn initial_seed() -> u64 {
     *INITIAL_SEED
 }
 
 thread_local! {
-    static INITIAL_RNG: RefCell<Mutex<SmallRng>> =
-        RefCell::new(Mutex::new(SmallRng::seed_from_u64(*INITIAL_SEED)));
-
     static SEED: RefCell<RwLock<u64>> = RefCell::new(RwLock::new(*INITIAL_SEED));
 
     static RNG: RefCell<crate::Rng> = RefCell::new(crate::Rng::new());
@@ -40,7 +40,7 @@ pub fn rng() -> crate::Rng {
 /// * If fails to get a random `u64`
 #[must_use]
 pub fn gen_seed() -> u64 {
-    INITIAL_RNG.with_borrow(|x| x.lock().unwrap().next_u64())
+    INITIAL_RNG.lock().unwrap().next_u64()
 }
 
 #[must_use]
@@ -51,8 +51,10 @@ pub fn contains_fixed_seed() -> bool {
 /// # Panics
 ///
 /// * If the `SEED` `RwLock` fails to write to
+/// * If the `RNG` `Mutex` fails to lock
 pub fn reset_seed() {
     let seed = gen_seed();
+    log::debug!("reset_seed to seed={seed}");
     SEED.with_borrow_mut(|x| *x.write().unwrap() = seed);
     RNG.with_borrow_mut(|x| *x.0.lock().unwrap().0.lock().unwrap() = SmallRng::seed_from_u64(seed));
 }
@@ -67,9 +69,10 @@ pub fn seed() -> u64 {
 
 /// # Panics
 ///
-/// * If the `SEED` `RwLock` fails to write to
+/// * If the `RNG` `Mutex` fails to lock
 pub fn reset_rng() {
     let seed = seed();
+    log::debug!("reset_rng to seed={seed}");
     RNG.with_borrow_mut(|x| *x.0.lock().unwrap().0.lock().unwrap() = SmallRng::seed_from_u64(seed));
 }
 

@@ -21,6 +21,7 @@ fn gen_epoch_offset() -> u64 {
 /// * If the `EPOCH_OFFSET` `RwLock` fails to write to
 pub fn reset_epoch_offset() {
     let value = gen_epoch_offset();
+    log::debug!("reset_epoch_offset to seed={value}");
     EPOCH_OFFSET.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
 }
 
@@ -57,6 +58,7 @@ fn gen_step_multiplier() -> u64 {
 /// * If the `STEP_MULTIPLIER` `RwLock` fails to write to
 pub fn reset_step_multiplier() {
     let value = gen_step_multiplier();
+    log::debug!("reset_step_multiplier to seed={value}");
     STEP_MULTIPLIER.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
 }
 

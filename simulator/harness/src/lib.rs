@@ -8,6 +8,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use dst_demo_random::RNG;
 use dst_demo_simulator_utils::{
     cancel_simulation, reset_simulator_cancellation_token, reset_step,
     simulator_cancellation_token, step_next,
@@ -493,12 +494,18 @@ fn sim_builder() -> SimBuilder {
 
     let mut builder = SimBuilder::new();
 
+    let min_message_latency = RNG.gen_range_dist(0..=1000, 1.0);
+
     builder
         .fail_rate(0.0)
         .repair_rate(1.0)
         .tcp_capacity(64)
         .udp_capacity(64)
         .enable_random_order(true)
+        .min_message_latency(Duration::from_millis(min_message_latency))
+        .max_message_latency(Duration::from_millis(
+            RNG.gen_range(min_message_latency..2000),
+        ))
         .duration(Duration::from_secs(*DURATION));
 
     #[cfg(feature = "time")]

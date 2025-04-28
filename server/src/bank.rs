@@ -190,13 +190,20 @@ impl Bank for LocalBank {
         };
         {
             let binding = self.transactions.read().await;
-            let last_transaction = binding.last();
-            assert!(
-                last_transaction.is_none_or(|x| transaction.id == x.id + 1),
-                "expected id to be last transaction.id + 1 last_transaction.id={} to transaction_id={}",
-                last_transaction.unwrap().id,
-                transaction.id,
-            );
+            if let Some(last_transaction) = binding.last() {
+                assert!(
+                    transaction.created_at >= last_transaction.created_at,
+                    "expected transaction.created_at={} >= last_transaction.created_at={}",
+                    transaction.created_at,
+                    last_transaction.created_at,
+                );
+                assert!(
+                    transaction.id == last_transaction.id + 1,
+                    "expected id to be least transaction.id + 1 last_transaction.id={} to transaction_id={}",
+                    last_transaction.id,
+                    transaction.id,
+                );
+            }
             drop(binding);
         }
         {

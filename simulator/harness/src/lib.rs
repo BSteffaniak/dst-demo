@@ -88,7 +88,7 @@ fn run_info(run_index: u64, props: &[(String, String)]) -> String {
     format!(
         "\
         seed={seed}\n\
-        runs={runs}\
+        run={runs}\
         {extra}{props_str}",
         seed = dst_demo_random::simulator::seed(),
     )

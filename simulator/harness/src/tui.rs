@@ -25,15 +25,14 @@ struct SimulationInfo {
 pub struct DisplayState {
     running: Arc<AtomicBool>,
     simulations: Arc<RwLock<Vec<SimulationInfo>>>,
-    terminal: Arc<RwLock<DefaultTerminal>>,
+    terminal: Arc<RwLock<Option<DefaultTerminal>>>,
     runs_completed: Arc<RwLock<u64>>,
 }
 
 impl DisplayState {
     pub fn new() -> Self {
-        let terminal = ratatui::init();
         Self {
-            terminal: Arc::new(RwLock::new(terminal)),
+            terminal: Arc::new(RwLock::new(None)),
             running: Arc::new(AtomicBool::new(true)),
             simulations: Arc::new(RwLock::new(vec![])),
             runs_completed: Arc::new(RwLock::new(0)),
@@ -75,10 +74,21 @@ impl DisplayState {
     }
 
     fn draw(&self) -> std::io::Result<()> {
-        self.terminal
-            .write()
-            .unwrap()
+        let mut binding = self.terminal.write().unwrap();
+
+        binding
+            .as_mut()
+            .ok_or_else(|| {
+                use std::io::{Error, ErrorKind};
+
+                Error::new(
+                    ErrorKind::Unsupported,
+                    "terminal has not been created. call tui::start",
+                )
+            })?
             .draw(|frame| render(self, frame))?;
+
+        drop(binding);
 
         Ok(())
     }
@@ -98,6 +108,8 @@ pub fn spawn(state: DisplayState) -> JoinHandle<std::io::Result<()>> {
 }
 
 pub fn start(state: &DisplayState) -> std::io::Result<()> {
+    let terminal = ratatui::init();
+    *state.terminal.write().unwrap() = Some(terminal);
     let event_loop = spawn_event_loop(state);
     let result = run(state);
     event_loop.join().unwrap()?;

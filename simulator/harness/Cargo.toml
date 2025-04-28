@@ -31,8 +31,11 @@ log         = { workspace = true }
 shell-words = { workspace = true }
 turmoil     = { workspace = true }
 
+# TUI
+ratatui = { workspace = true, optional = true }
+
 [features]
-default = []
+default = ["tui"]
 
 fail-on-warnings = []
 
@@ -40,3 +43,5 @@ fs     = ["dep:dst_demo_fs"]
 random = []
 tcp    = ["dep:dst_demo_tcp"]
 time   = ["dep:dst_demo_time"]
+
+tui = ["dep:ratatui"]

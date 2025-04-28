@@ -34,12 +34,24 @@ pub use dst_demo_time as time;
 
 mod formatting;
 pub mod plan;
+#[cfg(feature = "tui")]
+mod tui;
 
 static RUNS: LazyLock<u64> = LazyLock::new(|| {
     std::env::var("SIMULATOR_RUNS")
         .ok()
         .map_or(1, |x| x.parse::<u64>().unwrap())
 });
+
+fn log_message(msg: impl Into<String>) {
+    let msg = msg.into();
+
+    #[cfg(feature = "tui")]
+    log::info!("{msg}");
+
+    #[cfg(not(feature = "tui"))]
+    println!("{msg}");
+}
 
 fn run_info(run_index: u64, props: &[(String, String)]) -> String {
     #[cfg(feature = "time")]
@@ -225,6 +237,9 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
 
     ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
 
+    #[cfg(feature = "tui")]
+    let tui_handle = tui::spawn();
+
     let runs = *RUNS;
 
     let max_parallel = *MAX_PARALLEL;
@@ -234,6 +249,9 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
     let sim_orchestrator = SimOrchestrator::new(bootstrap, runs, max_parallel);
 
     sim_orchestrator.start()?;
+
+    #[cfg(feature = "tui")]
+    tui_handle.join().unwrap()?;
 
     Ok(())
 }
@@ -422,13 +440,13 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         builder_props.extend(props);
         let props = builder_props;
 
-        println!(
+        log_message(format!(
             "\n\
             =========================== START ============================\n\
             Server simulator starting\n{}\n\
             ==============================================================\n",
             run_info(run_index, &props)
-        );
+        ));
 
         let start = SystemTime::now();
 
@@ -521,7 +539,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         let panic = panic.lock().unwrap().clone();
 
-        println!(
+        log_message(format!(
             "\n\
             =========================== FINISH ===========================\n\
             Server simulator finished\n{}\n\
@@ -533,7 +551,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 real_time_millis,
                 sim_time_millis,
             )
-        );
+        ));
 
         if let Some(panic) = panic {
             return Err(panic.into());

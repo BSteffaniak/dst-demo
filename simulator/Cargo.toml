@@ -19,6 +19,7 @@ dst_demo_simulator_harness = { version = "0.1.0", path = "harness", default-feat
     "random",
     "tcp",
     "time",
+    "tui",
 ] }
 
 log               = { workspace = true }

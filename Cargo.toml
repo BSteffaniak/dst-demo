@@ -40,6 +40,7 @@ log = { version = "0.4", features = ["release_max_level_trace"] }
 paste = "1.0.15"
 pretty_assertions = "1.4.1"
 pretty_env_logger = "0.5"
+ratatui = "0.29.0"
 reqwest = { version = "0.12.15", default-features = false, features = [
     "rustls-tls",
     "stream",

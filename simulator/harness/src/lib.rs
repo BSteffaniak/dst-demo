@@ -5,6 +5,7 @@
 use std::{
     panic::AssertUnwindSafe,
     sync::{Arc, LazyLock, Mutex, atomic::AtomicBool},
+    thread::JoinHandle,
     time::{Duration, SystemTime},
 };
 
@@ -199,207 +200,265 @@ pub fn end_sim() {
 /// * The contents of this function are wrapped in a `catch_unwind` call, so if
 ///   any panic happens, it will be wrapped into an error on the outer `Result`
 /// * If the `Sim` `step` returns an error, we return that in an Ok(Err(e))
-pub fn run_simulation(bootstrap: &impl SimBootstrap) -> Result<(), Box<dyn std::error::Error>> {
-    ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
+pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::error::Error>> {
+    static MAX_PARALLEL: LazyLock<u64> = LazyLock::new(|| {
+        std::env::var("SIMULATOR_MAX_PARALLEL").ok().map_or_else(
+            || {
+                u64::try_from(
+                    std::thread::available_parallelism()
+                        .map(Into::into)
+                        .unwrap_or(1usize),
+                )
+                .unwrap()
+            },
+            |x| x.parse::<u64>().unwrap(),
+        )
+    });
 
-    let panic = Arc::new(Mutex::new(None));
-    std::panic::set_hook(Box::new({
-        let prev_hook = std::panic::take_hook();
-        let panic = panic.clone();
-        move |x| {
-            *panic.lock().unwrap() = Some(x.to_string());
-            end_sim();
-            prev_hook(x);
-        }
-    }));
+    ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
 
     let runs = *RUNS;
 
-    for run_index in 1..=runs {
-        run(bootstrap, run_index, &panic)?;
+    let max_parallel = *MAX_PARALLEL;
 
-        if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
-            break;
-        }
-    }
+    log::debug!("Running simulation with max_parallel={max_parallel}");
+
+    let sim_orchestrator = SimOrchestrator::new(bootstrap, runs, max_parallel);
+
+    sim_orchestrator.start()?;
 
     Ok(())
 }
 
-#[allow(clippy::too_many_lines)]
-fn run(
-    bootstrap: &impl SimBootstrap,
-    run_index: u64,
-    panic: &Arc<Mutex<Option<String>>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    dst_demo_random::simulator::reset_rng();
-    #[cfg(feature = "fs")]
-    dst_demo_fs::simulator::reset_fs();
-    #[cfg(feature = "time")]
-    dst_demo_time::simulator::reset_epoch_offset();
-    #[cfg(feature = "time")]
-    dst_demo_time::simulator::reset_step_multiplier();
-    reset_simulator_cancellation_token();
-    reset_step();
+struct SimOrchestrator<B: SimBootstrap> {
+    bootstrap: B,
+    runs: u64,
+    #[allow(clippy::type_complexity, unused)]
+    threads: Vec<Option<JoinHandle<Result<(), Box<dyn std::error::Error>>>>>,
+}
 
-    bootstrap.init();
+impl<B: SimBootstrap> SimOrchestrator<B> {
+    fn new(bootstrap: B, runs: u64, max_parallel: u64) -> Self {
+        Self {
+            bootstrap,
+            runs,
+            threads: Vec::with_capacity(
+                usize::try_from(std::cmp::min(runs, max_parallel)).unwrap(),
+            ),
+        }
+    }
 
-    let builder = bootstrap.build_sim(sim_builder());
-    let mut builder_props = vec![
-        (
-            "tick_duration".to_string(),
-            builder.tick_duration.as_millis().to_string(),
-        ),
-        ("fail_rate".to_string(), builder.fail_rate.to_string()),
-        ("repair_rate".to_string(), builder.repair_rate.to_string()),
-        ("tcp_capacity".to_string(), builder.tcp_capacity.to_string()),
-        ("udp_capacity".to_string(), builder.udp_capacity.to_string()),
-        (
-            "enable_random_order".to_string(),
-            builder.enable_random_order.to_string(),
-        ),
-        (
-            "min_message_latency".to_string(),
-            builder.min_message_latency.as_millis().to_string(),
-        ),
-        (
-            "max_message_latency".to_string(),
-            builder.max_message_latency.as_millis().to_string(),
-        ),
-        (
-            "duration".to_string(),
-            if builder.duration == Duration::MAX {
-                "forever".to_string()
-            } else {
-                builder.duration.as_secs().to_string()
-            },
-        ),
-    ];
-
-    let duration = builder.duration;
-    let duration_secs = duration.as_secs();
-
-    let turmoil_builder: turmoil::Builder = builder.into();
-    #[cfg(feature = "random")]
-    let sim = turmoil_builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
-    #[cfg(not(feature = "random"))]
-    let sim = turmoil_builder.build();
-
-    let mut managed_sim = ManagedSim::new(sim);
-
-    let props = bootstrap.props();
-    builder_props.extend(props);
-    let props = builder_props;
-
-    println!(
-        "\n\
-            =========================== START ============================\n\
-            Server simulator starting\n{}\n\
-            ==============================================================\n",
-        run_info(run_index, &props)
-    );
-
-    let start = SystemTime::now();
-
-    bootstrap.on_start(&mut managed_sim);
-
-    let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let print_step = |sim: &Sim<'_>, step| {
-            #[allow(clippy::cast_precision_loss)]
-            if duration < Duration::MAX {
-                log::info!(
-                    "step {step} ({}) ({:.1}%)",
-                    sim.elapsed().as_millis().into_formatted(),
-                    SystemTime::now().duration_since(start).unwrap().as_millis() as f64
-                        / (duration_secs as f64 * 1000.0)
-                        * 100.0,
-                );
-            } else {
-                log::info!(
-                    "step {step} ({})",
-                    sim.elapsed().as_millis().into_formatted()
-                );
+    fn start(self) -> Result<(), Box<dyn std::error::Error>> {
+        let panic = Arc::new(Mutex::new(None));
+        std::panic::set_hook(Box::new({
+            let prev_hook = std::panic::take_hook();
+            let panic = panic.clone();
+            move |x| {
+                *panic.lock().unwrap() = Some(x.to_string());
+                end_sim();
+                prev_hook(x);
             }
-        };
+        }));
 
-        loop {
-            if !simulator_cancellation_token().is_cancelled() {
-                let step = step_next();
+        for run_index in 1..=self.runs {
+            let simulation = Simulation::new(&self.bootstrap);
 
-                if duration < Duration::MAX
-                    && SystemTime::now().duration_since(start).unwrap().as_secs() >= duration_secs
-                {
-                    log::debug!("sim ran for {duration_secs} seconds. stopping");
-                    print_step(&managed_sim.sim, step);
-                    cancel_simulation();
-                }
+            simulation.run(run_index, &panic)?;
 
-                if step % 1000 == 0 {
-                    print_step(&managed_sim.sim, step);
-                }
-
-                bootstrap.on_step(&mut managed_sim);
-            }
-
-            match managed_sim.sim.step() {
-                Ok(completed) => {
-                    if completed {
-                        log::debug!("sim completed");
-                        break;
-                    }
-                }
-                Err(e) => {
-                    let message = e.to_string();
-                    if message.starts_with("Ran for duration: ")
-                        && message.ends_with(" without completing")
-                    {
-                        break;
-                    }
-                    return Err(e);
-                }
+            if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
+                break;
             }
         }
 
         Ok(())
-    }));
+    }
+}
 
-    bootstrap.on_end(&mut managed_sim);
+struct Simulation<'a, B: SimBootstrap> {
+    bootstrap: &'a B,
+}
 
-    let end = SystemTime::now();
-    let real_time_millis = end.duration_since(start).unwrap().as_millis();
-    let sim_time_millis = managed_sim.sim.elapsed().as_millis();
+impl<'a, B: SimBootstrap> Simulation<'a, B> {
+    const fn new(bootstrap: &'a B) -> Self {
+        Self { bootstrap }
+    }
 
-    managed_sim.shutdown();
+    #[allow(clippy::too_many_lines)]
+    fn run(
+        &self,
+        run_index: u64,
+        panic: &Arc<Mutex<Option<String>>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        dst_demo_random::simulator::reset_rng();
+        #[cfg(feature = "fs")]
+        dst_demo_fs::simulator::reset_fs();
+        #[cfg(feature = "time")]
+        dst_demo_time::simulator::reset_epoch_offset();
+        #[cfg(feature = "time")]
+        dst_demo_time::simulator::reset_step_multiplier();
+        reset_simulator_cancellation_token();
+        reset_step();
 
-    let panic = panic.lock().unwrap().clone();
+        self.bootstrap.init();
 
-    println!(
-        "\n\
+        let builder = self.bootstrap.build_sim(sim_builder());
+        let mut builder_props = vec![
+            (
+                "tick_duration".to_string(),
+                builder.tick_duration.as_millis().to_string(),
+            ),
+            ("fail_rate".to_string(), builder.fail_rate.to_string()),
+            ("repair_rate".to_string(), builder.repair_rate.to_string()),
+            ("tcp_capacity".to_string(), builder.tcp_capacity.to_string()),
+            ("udp_capacity".to_string(), builder.udp_capacity.to_string()),
+            (
+                "enable_random_order".to_string(),
+                builder.enable_random_order.to_string(),
+            ),
+            (
+                "min_message_latency".to_string(),
+                builder.min_message_latency.as_millis().to_string(),
+            ),
+            (
+                "max_message_latency".to_string(),
+                builder.max_message_latency.as_millis().to_string(),
+            ),
+            (
+                "duration".to_string(),
+                if builder.duration == Duration::MAX {
+                    "forever".to_string()
+                } else {
+                    builder.duration.as_secs().to_string()
+                },
+            ),
+        ];
+
+        let duration = builder.duration;
+        let duration_secs = duration.as_secs();
+
+        let turmoil_builder: turmoil::Builder = builder.into();
+        #[cfg(feature = "random")]
+        let sim = turmoil_builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
+        #[cfg(not(feature = "random"))]
+        let sim = turmoil_builder.build();
+
+        let mut managed_sim = ManagedSim::new(sim);
+
+        let props = self.bootstrap.props();
+        builder_props.extend(props);
+        let props = builder_props;
+
+        println!(
+            "\n\
+            =========================== START ============================\n\
+            Server simulator starting\n{}\n\
+            ==============================================================\n",
+            run_info(run_index, &props)
+        );
+
+        let start = SystemTime::now();
+
+        self.bootstrap.on_start(&mut managed_sim);
+
+        let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            let print_step = |sim: &Sim<'_>, step| {
+                #[allow(clippy::cast_precision_loss)]
+                if duration < Duration::MAX {
+                    log::info!(
+                        "step {step} ({}) ({:.1}%)",
+                        sim.elapsed().as_millis().into_formatted(),
+                        SystemTime::now().duration_since(start).unwrap().as_millis() as f64
+                            / (duration_secs as f64 * 1000.0)
+                            * 100.0,
+                    );
+                } else {
+                    log::info!(
+                        "step {step} ({})",
+                        sim.elapsed().as_millis().into_formatted()
+                    );
+                }
+            };
+
+            loop {
+                if !simulator_cancellation_token().is_cancelled() {
+                    let step = step_next();
+
+                    if duration < Duration::MAX
+                        && SystemTime::now().duration_since(start).unwrap().as_secs()
+                            >= duration_secs
+                    {
+                        log::debug!("sim ran for {duration_secs} seconds. stopping");
+                        print_step(&managed_sim.sim, step);
+                        cancel_simulation();
+                    }
+
+                    if step % 1000 == 0 {
+                        print_step(&managed_sim.sim, step);
+                    }
+
+                    self.bootstrap.on_step(&mut managed_sim);
+                }
+
+                match managed_sim.sim.step() {
+                    Ok(completed) => {
+                        if completed {
+                            log::debug!("sim completed");
+                            break;
+                        }
+                    }
+                    Err(e) => {
+                        let message = e.to_string();
+                        if message.starts_with("Ran for duration: ")
+                            && message.ends_with(" without completing")
+                        {
+                            break;
+                        }
+                        return Err(e);
+                    }
+                }
+            }
+
+            Ok(())
+        }));
+
+        self.bootstrap.on_end(&mut managed_sim);
+
+        let end = SystemTime::now();
+        let real_time_millis = end.duration_since(start).unwrap().as_millis();
+        let sim_time_millis = managed_sim.sim.elapsed().as_millis();
+
+        managed_sim.shutdown();
+
+        let panic = panic.lock().unwrap().clone();
+
+        println!(
+            "\n\
             =========================== FINISH ===========================\n\
             Server simulator finished\n{}\n\
             ==============================================================",
-        run_info_end(
-            run_index,
-            &props,
-            resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none(),
-            real_time_millis,
-            sim_time_millis,
-        )
-    );
+            run_info_end(
+                run_index,
+                &props,
+                resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none(),
+                real_time_millis,
+                sim_time_millis,
+            )
+        );
 
-    if let Some(panic) = panic {
-        return Err(panic.into());
+        if let Some(panic) = panic {
+            return Err(panic.into());
+        }
+
+        resp.unwrap()?;
+
+        if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
+            return Ok(());
+        }
+
+        dst_demo_random::simulator::reset_seed();
+
+        Ok(())
     }
-
-    resp.unwrap()?;
-
-    if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
-        return Ok(());
-    }
-
-    dst_demo_random::simulator::reset_seed();
-
-    Ok(())
 }
 
 pub struct SimBuilder {

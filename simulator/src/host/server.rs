@@ -1,4 +1,4 @@
-use dst_demo_simulator_harness::{CancellableSim, utils::simulator_cancellation_token};
+use dst_demo_simulator_harness::{CancellableSim, utils::run_until_simulation_cancelled};
 
 pub const HOST: &str = "dst_demo_server";
 pub const PORT: u16 = 1234;
@@ -11,8 +11,7 @@ pub fn start(sim: &mut impl CancellableSim) {
         let addr = addr.clone();
         async move {
             log::debug!("starting 'dst_demo' server");
-            simulator_cancellation_token()
-                .run_until_cancelled(dst_demo_server::run(&addr))
+            run_until_simulation_cancelled(dst_demo_server::run(&addr))
                 .await
                 .transpose()?;
             log::debug!("finished 'dst_demo' server");

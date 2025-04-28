@@ -4,8 +4,8 @@ use dst_demo_server::bank::{Transaction, TransactionId};
 use dst_demo_simulator_harness::{
     plan::InteractionPlan,
     random::{
-        RNG,
         rand::rand::{Rng, seq::IteratorRandom as _},
+        rng,
     },
 };
 use rust_decimal::Decimal;
@@ -102,7 +102,7 @@ impl InteractionPlan<Interaction> for BankerInteractionPlan {
     fn gen_interactions(&mut self, count: u64) {
         let len = self.plan.len() as u64;
 
-        let mut rng = RNG.clone();
+        let mut rng = rng();
 
         for i in 1..=count {
             let interaction_type = InteractionType::iter().choose(&mut rng).unwrap();

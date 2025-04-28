@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dst_demo_simulator_harness::plan::InteractionPlan;
+use dst_demo_simulator_harness::{plan::InteractionPlan, utils::thread_id};
 use strum::{EnumDiscriminants, EnumIter};
 
 use crate::host::server::{HOST, PORT};
@@ -83,7 +83,10 @@ impl InteractionPlan<Interaction> for HealthCheckInteractionPlan {
                     self.add_interaction(Interaction::Sleep(Duration::from_millis(1000)));
                 }
                 InteractionType::HealthCheck => {
-                    self.add_interaction(Interaction::HealthCheck(format!("{HOST}:{PORT}")));
+                    self.add_interaction(Interaction::HealthCheck(format!(
+                        "{HOST}_{}:{PORT}",
+                        thread_id()
+                    )));
                 }
             }
         }

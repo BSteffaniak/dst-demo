@@ -9,7 +9,7 @@ use std::{
     sync::{Arc, LazyLock, Mutex, RwLock},
 };
 
-use dst_demo_simulator_harness::{CancellableSim, random::RNG};
+use dst_demo_simulator_harness::{CancellableSim, random::rng};
 use tokio::io::AsyncReadExt;
 
 pub mod client;
@@ -22,7 +22,7 @@ static ACTIONS: LazyLock<Arc<Mutex<VecDeque<Action>>>> =
 static BANKER_COUNT: LazyLock<RwLock<Option<u64>>> = LazyLock::new(|| RwLock::new(None));
 
 fn gen_banker_count() -> u64 {
-    let value = RNG.gen_range(1..30u64);
+    let value = rng().gen_range(1..30u64);
 
     std::env::var("SIMULATOR_BANKER_COUNT")
         .ok()

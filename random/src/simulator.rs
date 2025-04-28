@@ -1,8 +1,11 @@
-use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use std::{
+    cell::RefCell,
+    sync::{Arc, LazyLock, Mutex, RwLock},
+};
 
 use rand::{Rng, RngCore, SeedableRng, rngs::SmallRng};
 
-use crate::{GenericRng, RNG};
+use crate::GenericRng;
 
 pub struct SimulatorRng(Arc<Mutex<SmallRng>>);
 
@@ -18,16 +21,26 @@ pub fn initial_seed() -> u64 {
     *INITIAL_SEED
 }
 
-static INITIAL_RNG: LazyLock<Mutex<SmallRng>> =
-    LazyLock::new(|| Mutex::new(SmallRng::seed_from_u64(*INITIAL_SEED)));
-static SEED: LazyLock<RwLock<u64>> = LazyLock::new(|| RwLock::new(*INITIAL_SEED));
+thread_local! {
+    static INITIAL_RNG: RefCell<Mutex<SmallRng>> =
+        RefCell::new(Mutex::new(SmallRng::seed_from_u64(*INITIAL_SEED)));
+
+    static SEED: RefCell<RwLock<u64>> = RefCell::new(RwLock::new(*INITIAL_SEED));
+
+    static RNG: RefCell<crate::Rng> = RefCell::new(crate::Rng::new());
+}
+
+#[must_use]
+pub fn rng() -> crate::Rng {
+    RNG.with_borrow(Clone::clone)
+}
 
 /// # Panics
 ///
 /// * If fails to get a random `u64`
 #[must_use]
 pub fn gen_seed() -> u64 {
-    INITIAL_RNG.lock().unwrap().next_u64()
+    INITIAL_RNG.with_borrow(|x| x.lock().unwrap().next_u64())
 }
 
 #[must_use]
@@ -40,8 +53,8 @@ pub fn contains_fixed_seed() -> bool {
 /// * If the `SEED` `RwLock` fails to write to
 pub fn reset_seed() {
     let seed = gen_seed();
-    *SEED.write().unwrap() = seed;
-    *RNG.0.lock().unwrap().0.lock().unwrap() = SmallRng::seed_from_u64(seed);
+    SEED.with_borrow_mut(|x| *x.write().unwrap() = seed);
+    RNG.with_borrow_mut(|x| *x.0.lock().unwrap().0.lock().unwrap() = SmallRng::seed_from_u64(seed));
 }
 
 /// # Panics
@@ -49,14 +62,15 @@ pub fn reset_seed() {
 /// * If the `SEED` `RwLock` fails to read from
 #[must_use]
 pub fn seed() -> u64 {
-    *SEED.read().unwrap()
+    SEED.with_borrow(|x| *x.read().unwrap())
 }
 
 /// # Panics
 ///
 /// * If the `SEED` `RwLock` fails to write to
 pub fn reset_rng() {
-    *RNG.0.lock().unwrap().0.lock().unwrap() = SmallRng::seed_from_u64(seed());
+    let seed = seed();
+    RNG.with_borrow_mut(|x| *x.0.lock().unwrap().0.lock().unwrap() = SmallRng::seed_from_u64(seed));
 }
 
 impl SimulatorRng {

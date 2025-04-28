@@ -4,15 +4,18 @@
 
 use std::{
     panic::AssertUnwindSafe,
-    sync::{Arc, LazyLock, Mutex, atomic::AtomicBool},
-    thread::JoinHandle,
+    sync::{
+        Arc, LazyLock, Mutex,
+        atomic::{AtomicBool, AtomicU64},
+    },
     time::{Duration, SystemTime},
 };
 
-use dst_demo_random::RNG;
+use dst_demo_random::rng;
 use dst_demo_simulator_utils::{
-    cancel_simulation, reset_simulator_cancellation_token, reset_step,
-    simulator_cancellation_token, step_next,
+    cancel_global_simulation, cancel_simulation, is_global_simulator_cancelled,
+    is_simulator_cancelled, reset_simulator_cancellation_token, reset_step,
+    run_until_simulation_cancelled, step_next, thread_id,
 };
 use formatting::TimeFormat as _;
 use turmoil::Sim;
@@ -153,7 +156,12 @@ fn run_info_end(
         String::new()
     } else {
         let cmd = get_run_command(
-            &["SIMULATOR_SEED", "SIMULATOR_RUNS", "SIMULATOR_DURATION"],
+            &[
+                "SIMULATOR_SEED",
+                "SIMULATOR_RUNS",
+                "SIMULATOR_DURATION",
+                "SIMULATOR_MAX_PARALLEL",
+            ],
             dst_demo_random::simulator::seed(),
         );
         format!("\n\nTo run again with this seed: `{cmd}`")
@@ -186,8 +194,8 @@ static END_SIM: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
 pub fn end_sim() {
     END_SIM.store(true, std::sync::atomic::Ordering::SeqCst);
 
-    if !simulator_cancellation_token().is_cancelled() {
-        cancel_simulation();
+    if !is_global_simulator_cancelled() {
+        cancel_global_simulation();
     }
 }
 
@@ -233,18 +241,15 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
 struct SimOrchestrator<B: SimBootstrap> {
     bootstrap: B,
     runs: u64,
-    #[allow(clippy::type_complexity, unused)]
-    threads: Vec<Option<JoinHandle<Result<(), Box<dyn std::error::Error>>>>>,
+    max_parallel: u64,
 }
 
 impl<B: SimBootstrap> SimOrchestrator<B> {
-    fn new(bootstrap: B, runs: u64, max_parallel: u64) -> Self {
+    const fn new(bootstrap: B, runs: u64, max_parallel: u64) -> Self {
         Self {
             bootstrap,
             runs,
-            threads: Vec::with_capacity(
-                usize::try_from(std::cmp::min(runs, max_parallel)).unwrap(),
-            ),
+            max_parallel,
         }
     }
 
@@ -254,19 +259,83 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
             let prev_hook = std::panic::take_hook();
             let panic = panic.clone();
             move |x| {
+                let thread_id = thread_id();
+                log::debug!("caught panic on thread_id={thread_id}");
                 *panic.lock().unwrap() = Some(x.to_string());
                 end_sim();
                 prev_hook(x);
             }
         }));
 
-        for run_index in 1..=self.runs {
-            let simulation = Simulation::new(&self.bootstrap);
+        let parallel = std::cmp::min(self.runs, self.max_parallel);
+        let run_index = Arc::new(AtomicU64::new(0));
 
-            simulation.run(run_index, &panic)?;
+        let bootstrap = Arc::new(self.bootstrap);
 
-            if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
-                break;
+        if self.max_parallel == 0 {
+            for run_index in 0..self.runs {
+                let simulation = Simulation::new(&*bootstrap);
+
+                simulation
+                    .run(run_index, None, &panic)
+                    .map_err(|e| e.to_string())?;
+
+                if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
+                    break;
+                }
+            }
+        } else {
+            let mut threads = vec![];
+
+            for i in 0..parallel {
+                log::debug!("starting thread {i}");
+
+                let run_index = run_index.clone();
+                let bootstrap = bootstrap.clone();
+                let panic = panic.clone();
+                let runs = self.runs;
+
+                let handle = std::thread::spawn(move || {
+                    let thread_id = thread_id();
+                    let simulation = Simulation::new(&*bootstrap);
+
+                    loop {
+                        if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
+                            log::debug!("simulation has ended. thread {i} ({thread_id}) finished");
+                            break;
+                        }
+
+                        let run_index = run_index.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        if run_index >= runs {
+                            log::debug!(
+                                "finished all runs ({runs}). thread {i} ({thread_id}) finished"
+                            );
+                            break;
+                        }
+
+                        log::debug!(
+                            "starting simulation run_index={run_index} on thread {i} ({thread_id})"
+                        );
+                        if let Err(e) = simulation
+                            .run(run_index + 1, Some(thread_id), &panic)
+                            .map_err(|e| e.to_string())
+                        {
+                            END_SIM.store(true, std::sync::atomic::Ordering::SeqCst);
+                            cancel_global_simulation();
+                            return Err(e);
+                        }
+                    }
+
+                    Ok::<_, String>(())
+                });
+
+                threads.push(handle);
+            }
+
+            for (i, thread) in threads.into_iter().enumerate() {
+                log::debug!("joining thread {i}...");
+                thread.join().unwrap()?;
+                log::debug!("thread {i} joined");
             }
         }
 
@@ -287,6 +356,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
     fn run(
         &self,
         run_index: u64,
+        thread_id: Option<u64>,
         panic: &Arc<Mutex<Option<String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         dst_demo_random::simulator::reset_rng();
@@ -333,12 +403,16 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             ),
         ];
 
+        if let Some(id) = thread_id {
+            builder_props.push(("thread_id".to_string(), id.to_string()));
+        }
+
         let duration = builder.duration;
         let duration_secs = duration.as_secs();
 
         let turmoil_builder: turmoil::Builder = builder.into();
         #[cfg(feature = "random")]
-        let sim = turmoil_builder.build_with_rng(Box::new(dst_demo_random::RNG.clone()));
+        let sim = turmoil_builder.build_with_rng(Box::new(rng()));
         #[cfg(not(feature = "random"))]
         let sim = turmoil_builder.build();
 
@@ -365,7 +439,10 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 #[allow(clippy::cast_precision_loss)]
                 if duration < Duration::MAX {
                     log::info!(
-                        "step {step} ({}) ({:.1}%)",
+                        "{}step {step} ({}) ({:.1}%)",
+                        thread_id
+                            .map(|x| format!("[thread {x}] "))
+                            .unwrap_or_default(),
                         sim.elapsed().as_millis().into_formatted(),
                         SystemTime::now().duration_since(start).unwrap().as_millis() as f64
                             / (duration_secs as f64 * 1000.0)
@@ -373,21 +450,29 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                     );
                 } else {
                     log::info!(
-                        "step {step} ({})",
+                        "{}step {step} ({})",
+                        thread_id
+                            .map(|x| format!("[thread {x}] "))
+                            .unwrap_or_default(),
                         sim.elapsed().as_millis().into_formatted()
                     );
                 }
             };
 
             loop {
-                if !simulator_cancellation_token().is_cancelled() {
+                if !is_simulator_cancelled() {
                     let step = step_next();
 
                     if duration < Duration::MAX
                         && SystemTime::now().duration_since(start).unwrap().as_secs()
                             >= duration_secs
                     {
-                        log::debug!("sim ran for {duration_secs} seconds. stopping");
+                        log::debug!(
+                            "{}sim ran for {duration_secs} seconds. stopping",
+                            thread_id
+                                .map(|x| format!("[thread {x}] "))
+                                .unwrap_or_default(),
+                        );
                         print_step(&managed_sim.sim, step);
                         cancel_simulation();
                     }
@@ -402,7 +487,12 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 match managed_sim.sim.step() {
                     Ok(completed) => {
                         if completed {
-                            log::debug!("sim completed");
+                            log::debug!(
+                                "{}sim completed",
+                                thread_id
+                                    .map(|x| format!("[thread {x}] "))
+                                    .unwrap_or_default(),
+                            );
                             break;
                         }
                     }
@@ -568,7 +658,7 @@ fn sim_builder() -> SimBuilder {
 
     let mut builder = SimBuilder::new();
 
-    let min_message_latency = RNG.gen_range_dist(0..=1000, 1.0);
+    let min_message_latency = rng().gen_range_dist(0..=1000, 1.0);
 
     builder
         .fail_rate(0.0)
@@ -578,7 +668,7 @@ fn sim_builder() -> SimBuilder {
         .enable_random_order(true)
         .min_message_latency(Duration::from_millis(min_message_latency))
         .max_message_latency(Duration::from_millis(
-            RNG.gen_range(min_message_latency..2000),
+            rng().gen_range(min_message_latency..2000),
         ))
         .duration(*DURATION);
 
@@ -590,7 +680,7 @@ fn sim_builder() -> SimBuilder {
     builder
 }
 
-pub trait SimBootstrap {
+pub trait SimBootstrap: Send + Sync + 'static {
     #[must_use]
     fn props(&self) -> Vec<(String, String)> {
         vec![]
@@ -646,7 +736,9 @@ impl<'a> ManagedSim<'a> {
 
 impl CancellableSim for ManagedSim<'_> {
     fn bounce(&mut self, host: impl Into<String>) {
-        Sim::bounce(&mut self.sim, host.into());
+        let host = host.into();
+        let host = format!("{host}_{}", thread_id());
+        Sim::bounce(&mut self.sim, host);
     }
 
     fn host<
@@ -657,6 +749,8 @@ impl CancellableSim for ManagedSim<'_> {
         name: &str,
         action: F,
     ) {
+        let name = format!("{name}_{}", thread_id());
+        log::debug!("starting host with name={name}");
         Sim::host(&mut self.sim, name, action);
     }
 
@@ -665,21 +759,12 @@ impl CancellableSim for ManagedSim<'_> {
         name: &str,
         action: impl Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
     ) {
-        client_until_cancelled(&mut self.sim, name, action);
+        let name = format!("{name}_{}", thread_id());
+        log::debug!("starting client with name={name}");
+        self.sim.client(name, async move {
+            run_until_simulation_cancelled(action).await.transpose()?;
+
+            Ok(())
+        });
     }
-}
-
-pub fn client_until_cancelled(
-    sim: &mut Sim<'_>,
-    name: &str,
-    action: impl Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
-) {
-    sim.client(name, async move {
-        simulator_cancellation_token()
-            .run_until_cancelled(action)
-            .await
-            .transpose()?;
-
-        Ok(())
-    });
 }

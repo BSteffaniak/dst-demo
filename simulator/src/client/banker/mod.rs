@@ -1,7 +1,4 @@
-use std::{
-    str::FromStr,
-    sync::{LazyLock, atomic::AtomicU32},
-};
+use std::{cell::RefCell, str::FromStr, sync::atomic::AtomicU32};
 
 use dst_demo_server::{
     ServerAction,
@@ -9,7 +6,7 @@ use dst_demo_server::{
 };
 use dst_demo_simulator_harness::{
     CancellableSim, plan::InteractionPlan as _, time::simulator::step_multiplier,
-    turmoil::net::TcpStream,
+    turmoil::net::TcpStream, utils::thread_id,
 };
 use plan::{BankerInteractionPlan, Interaction};
 use rust_decimal::Decimal;
@@ -22,18 +19,20 @@ use crate::{
     read_message,
 };
 
-static ID: LazyLock<AtomicU32> = LazyLock::new(|| AtomicU32::new(1));
+thread_local! {
+    static ID: RefCell<AtomicU32> = const { RefCell::new(AtomicU32::new(1)) };
+}
 
 pub fn reset_id() {
-    ID.store(1, std::sync::atomic::Ordering::SeqCst);
+    ID.with_borrow(|x| x.store(1, std::sync::atomic::Ordering::SeqCst));
 }
 
 pub fn start(sim: &mut impl CancellableSim) {
-    let server_addr = format!("{HOST}:{PORT}");
+    let server_addr = format!("{HOST}_{}:{PORT}", thread_id());
 
     let name = format!(
         "Banker{}",
-        ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+        ID.with_borrow(|x| x.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
     );
 
     log::debug!("[{name}] Generating initial test plan");

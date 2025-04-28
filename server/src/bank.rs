@@ -223,6 +223,7 @@ impl Bank for LocalBank {
         self.file.lock().await.write_all(serialized.as_bytes())?;
 
         *self.balance.write().await += transaction.amount;
+
         self.transactions.write().await.push(transaction.clone());
 
         Ok(transaction)

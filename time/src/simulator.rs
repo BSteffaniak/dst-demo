@@ -1,12 +1,15 @@
 use std::{
-    sync::{LazyLock, RwLock},
+    cell::RefCell,
+    sync::RwLock,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-static EPOCH_OFFSET: LazyLock<RwLock<Option<u64>>> = LazyLock::new(|| RwLock::new(None));
+thread_local! {
+    static EPOCH_OFFSET: RefCell<RwLock<Option<u64>>> = const { RefCell::new(RwLock::new(None)) };
+}
 
 fn gen_epoch_offset() -> u64 {
-    let value = dst_demo_random::RNG.gen_range(1..100_000_000_000_000u64);
+    let value = dst_demo_random::rng().gen_range(1..100_000_000_000_000u64);
 
     std::env::var("SIMULATOR_EPOCH_OFFSET")
         .ok()
@@ -18,7 +21,7 @@ fn gen_epoch_offset() -> u64 {
 /// * If the `EPOCH_OFFSET` `RwLock` fails to write to
 pub fn reset_epoch_offset() {
     let value = gen_epoch_offset();
-    *EPOCH_OFFSET.write().unwrap() = Some(value);
+    EPOCH_OFFSET.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
 }
 
 /// # Panics
@@ -26,20 +29,22 @@ pub fn reset_epoch_offset() {
 /// * If the `EPOCH_OFFSET` `RwLock` fails to read from
 #[must_use]
 pub fn epoch_offset() -> u64 {
-    let value = { *EPOCH_OFFSET.read().unwrap() };
+    let value = EPOCH_OFFSET.with_borrow(|x| *x.read().unwrap());
     value.unwrap_or_else(|| {
         let value = gen_epoch_offset();
-        *EPOCH_OFFSET.write().unwrap() = Some(value);
+        EPOCH_OFFSET.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
         value
     })
 }
 
-static STEP_MULTIPLIER: LazyLock<RwLock<Option<u64>>> = LazyLock::new(|| RwLock::new(None));
+thread_local! {
+    static STEP_MULTIPLIER: RefCell<RwLock<Option<u64>>> = const { RefCell::new(RwLock::new(None)) };
+}
 
 fn gen_step_multiplier() -> u64 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let value = {
-        let value = dst_demo_random::RNG.gen_range_disti(1..1_000_000, 10);
+        let value = dst_demo_random::rng().gen_range_disti(1..1_000_000, 10);
         if value == 0 { 1 } else { value }
     };
     std::env::var("SIMULATOR_STEP_MULTIPLIER")
@@ -52,7 +57,7 @@ fn gen_step_multiplier() -> u64 {
 /// * If the `STEP_MULTIPLIER` `RwLock` fails to write to
 pub fn reset_step_multiplier() {
     let value = gen_step_multiplier();
-    *STEP_MULTIPLIER.write().unwrap() = Some(value);
+    STEP_MULTIPLIER.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
 }
 
 /// # Panics
@@ -60,10 +65,10 @@ pub fn reset_step_multiplier() {
 /// * If the `STEP_MULTIPLIER` `RwLock` fails to read from
 #[must_use]
 pub fn step_multiplier() -> u64 {
-    let value = { *STEP_MULTIPLIER.read().unwrap() };
+    let value = STEP_MULTIPLIER.with_borrow(|x| *x.read().unwrap());
     value.unwrap_or_else(|| {
         let value = gen_epoch_offset();
-        *STEP_MULTIPLIER.write().unwrap() = Some(value);
+        STEP_MULTIPLIER.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
         value
     })
 }

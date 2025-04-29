@@ -439,12 +439,15 @@ fn render(state: &DisplayState, frame: &mut Frame) {
 
             let gauge = Gauge::default()
                 .block(Block::bordered().title(format!(
-                    "Thread {} / Run {} / Seed {} / Step [{}/{}]",
+                    "Thread {} / Run {} / Seed {} / Step {step}",
                     sim.thread_id,
                     sim.run_number,
                     sim.config.seed,
-                    sim.step,
-                    sim.config.duration.as_millis()
+                    step = if sim.config.duration < Duration::MAX {
+                        format!("[{}/{}]", sim.step, sim.config.duration.as_millis())
+                    } else {
+                        sim.step.to_string()
+                    }
                 )))
                 .gauge_style(style)
                 .percent(percent);

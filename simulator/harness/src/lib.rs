@@ -14,7 +14,7 @@ use std::{
 
 use dst_demo_random::rng;
 use dst_demo_simulator_utils::{
-    cancel_global_simulation, cancel_simulation, is_global_simulator_cancelled,
+    cancel_global_simulation, cancel_simulation, current_step, is_global_simulator_cancelled,
     is_simulator_cancelled, reset_simulator_cancellation_token, reset_step,
     run_until_simulation_cancelled, step_next, thread_id, worker_thread_id,
 };
@@ -168,6 +168,7 @@ fn run_info_end(
     run_index: u64,
     props: &[(String, String)],
     successful: bool,
+    steps: u64,
     real_time_millis: u128,
     sim_time_millis: u128,
 ) -> String {
@@ -198,6 +199,7 @@ fn run_info_end(
         "\
         {run_info}\n\
         successful={successful}\n\
+        steps={steps}\n\
         real_time_elapsed={real_time}\n\
         simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\
         {run_from_seed}{run_from_start}",
@@ -694,9 +696,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                             run_number,
                             #[allow(clippy::cast_precision_loss)]
                             if duration < Duration::MAX {
-                                (dst_demo_simulator_utils::current_step() as f64
-                                    / duration_steps as f64)
-                                    .clamp(0.0, 1.0)
+                                (current_step() as f64 / duration_steps as f64).clamp(0.0, 1.0)
                             } else {
                                 0.0
                             },
@@ -717,6 +717,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         let end = SystemTime::now();
         let real_time_millis = end.duration_since(start).unwrap().as_millis();
         let sim_time_millis = managed_sim.sim.elapsed().as_millis();
+        let steps = current_step();
 
         managed_sim.shutdown();
 
@@ -728,7 +729,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             run_number,
             #[allow(clippy::cast_precision_loss)]
             if duration < Duration::MAX {
-                dst_demo_simulator_utils::current_step() as f64 / duration_steps as f64
+                current_step() as f64 / duration_steps as f64
             } else {
                 0.0
             },
@@ -744,6 +745,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 run_number,
                 &props,
                 success,
+                steps,
                 real_time_millis,
                 sim_time_millis,
             )

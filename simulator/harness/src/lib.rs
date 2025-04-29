@@ -312,6 +312,7 @@ fn init_pretty_env_logger() -> std::io::Result<()> {
 /// * The contents of this function are wrapped in a `catch_unwind` call, so if
 ///   any panic happens, it will be wrapped into an error on the outer `Result`
 /// * If the `Sim` `step` returns an error, we return that in an Ok(Err(e))
+#[allow(clippy::let_and_return)]
 pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::error::Error>> {
     static MAX_PARALLEL: LazyLock<u64> = LazyLock::new(|| {
         std::env::var("SIMULATOR_MAX_PARALLEL").ok().map_or_else(
@@ -359,7 +360,7 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
         display_state.clone(),
     );
 
-    sim_orchestrator.start()?;
+    let resp = sim_orchestrator.start();
 
     #[cfg(feature = "tui")]
     if let Some(tui_handle) = tui_handle {
@@ -367,7 +368,7 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
         tui_handle.join().unwrap()?;
     }
 
-    Ok(())
+    resp
 }
 
 struct SimOrchestrator<B: SimBootstrap> {

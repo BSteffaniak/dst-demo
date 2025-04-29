@@ -666,6 +666,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         managed_sim.shutdown();
 
         let panic = panic.lock().unwrap().clone();
+        let success = resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none();
 
         log_message(format!(
             "\n\
@@ -675,7 +676,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             run_info_end(
                 run_number,
                 &props,
-                resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none(),
+                success,
                 real_time_millis,
                 sim_time_millis,
             )

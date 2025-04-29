@@ -401,8 +401,9 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
             let panic = panic.clone();
             move |x| {
                 let thread_id = thread_id();
-                log::debug!("caught panic on thread_id={thread_id}");
-                *panic.lock().unwrap() = Some(x.to_string());
+                let panic_str = x.to_string();
+                log::debug!("caught panic on thread_id={thread_id}: {panic_str}");
+                *panic.lock().unwrap() = Some(panic_str);
                 end_sim();
                 prev_hook(x);
             }

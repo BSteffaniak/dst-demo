@@ -12,7 +12,7 @@ use ratatui::{
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
     layout::{Alignment, Constraint, Direction, Layout, Position},
     style::{Style, Stylize as _},
-    widgets::{Block, Gauge, Padding, Paragraph},
+    widgets::{Block, Gauge, Paragraph},
 };
 
 use crate::{RUNS, SimConfig, end_sim};
@@ -411,14 +411,6 @@ fn render(state: &DisplayState, frame: &mut Frame) {
 
         for (&area, sim) in gauges_areas.iter().zip(simulations.iter().skip(offset)) {
             log::trace!("render: render col={i}, sim={}", sim.thread_id);
-            let [gauge_area, _, run_number_area] = Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([
-                    Constraint::Fill(1),
-                    Constraint::Length(2),
-                    Constraint::Length(10),
-                ])
-                .areas(area);
 
             let style = Style::new();
             let style = if sim.failed {
@@ -432,20 +424,14 @@ fn render(state: &DisplayState, frame: &mut Frame) {
             let percent = ((sim.progress * 100.0).round() as u16).clamp(0, 100);
 
             let gauge = Gauge::default()
-                .block(
-                    Block::bordered()
-                        .title(format!("Thread {} ({}) ", sim.thread_id, sim.config.seed)),
-                )
+                .block(Block::bordered().title(format!(
+                    "Thread {} / Run {} / Seed {}",
+                    sim.thread_id, sim.run_number, sim.config.seed
+                )))
                 .gauge_style(style)
                 .percent(percent);
 
-            frame.render_widget(gauge, gauge_area);
-
-            let run_number = Paragraph::new(format!("Run {}", sim.run_number))
-                .block(Block::default().padding(Padding::vertical(1)))
-                .alignment(Alignment::Left);
-
-            frame.render_widget(run_number, run_number_area);
+            frame.render_widget(gauge, area);
         }
 
         offset += rows as usize;

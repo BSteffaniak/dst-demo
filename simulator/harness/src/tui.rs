@@ -269,21 +269,27 @@ fn run(state: &DisplayState) -> std::io::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::similar_names, clippy::too_many_lines)]
 fn render(state: &DisplayState, frame: &mut Frame) {
-    log::trace!("render: start");
+    let area = frame.area();
+
+    log::trace!("render: start frame.size=({}, {})", area.width, area.height);
 
     let simulations = state.simulations.read().unwrap();
 
-    let constraints = std::iter::once(Constraint::Length(1)).chain(std::iter::repeat_n(
-        Constraint::Length(3),
-        simulations.len(),
-    ));
-
-    let chunks = Layout::default()
+    let [header_area, gauges_area] = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints(constraints)
-        .split(frame.area());
+        .constraints([Constraint::Length(1), Constraint::Fill(1)])
+        .areas(area);
+
+    log::trace!(
+        "render: header_area.size=({}, {}) gauges_area.size=({}, {})",
+        header_area.width,
+        header_area.height,
+        gauges_area.width,
+        gauges_area.height,
+    );
 
     let runs = *RUNS;
     let header = if runs > 1 {
@@ -293,41 +299,142 @@ fn render(state: &DisplayState, frame: &mut Frame) {
     };
     let header_widget = Paragraph::new(header).alignment(Alignment::Center);
 
-    frame.render_widget(header_widget, chunks[0]);
+    frame.render_widget(header_widget, header_area);
 
-    for (sim, &area) in simulations.iter().zip(chunks.iter().skip(1)) {
-        let [gauge_area, _, run_number_area] = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(100),
-                Constraint::Length(2),
-                Constraint::Length(10),
-            ])
-            .areas(area);
+    if simulations.is_empty() {
+        return;
+    }
 
-        let style = Style::new();
-        let style = if sim.failed {
-            style.red()
-        } else {
-            style.white()
-        };
-        let style = style.on_black().italic();
+    let height = gauges_area.height;
+    let gauge_height: u16 = 3;
+    let gauge_margin: u16 = 0;
+    let (gauges_height, gauges_per_height) = {
+        let mut current_height = 0;
+        let mut gauge_count = 0;
 
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let percent = ((sim.progress * 100.0).round() as u16).clamp(0, 100);
+        while (gauge_count as usize) < simulations.len() {
+            current_height += gauge_height;
 
-        let gauge = Gauge::default()
-            .block(Block::bordered().title(format!("Thread {}: ", sim.thread_id)))
-            .gauge_style(style)
-            .percent(percent);
+            if current_height >= height {
+                break;
+            }
 
-        frame.render_widget(gauge, gauge_area);
+            gauge_count += 1;
+            current_height += gauge_margin;
+        }
 
-        let run_number = Paragraph::new(format!("Run {}", sim.run_number))
-            .block(Block::default().padding(Padding::vertical(1)))
-            .alignment(Alignment::Left);
+        let gauge_count = std::cmp::max(1, gauge_count);
+        let gauges_height = gauge_count * gauge_height + ((gauge_count - 1) * gauge_margin);
 
-        frame.render_widget(run_number, run_number_area);
+        (gauges_height, gauge_count)
+    };
+
+    let required_height = {
+        let mut required_height = 0;
+        let mut gauge_count = 0;
+
+        while (gauge_count as usize) < simulations.len() {
+            required_height += gauges_height;
+            gauge_count += gauges_per_height;
+        }
+
+        required_height
+    };
+
+    log::trace!(
+        "\
+        render: \
+        height={height} \
+        gauge_height={gauge_height} \
+        gauge_margin={gauge_margin} \
+        required_height={required_height} \
+        gauges_per_height={gauges_per_height} \
+        gauges_height={gauges_height}\
+        "
+    );
+
+    let columns = {
+        let mut required_height = required_height;
+        let mut columns = vec![];
+
+        while required_height >= height {
+            columns.push(Constraint::Fill(1));
+            required_height -= gauges_height;
+        }
+
+        columns.push(Constraint::Fill(1));
+        columns
+    };
+
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .margin(1)
+        .constraints(&columns)
+        .split(gauges_area);
+
+    let mut remaining_height = required_height;
+    let mut offset = 0;
+
+    log::trace!(
+        "render: rendering columns={} remaining_height={remaining_height}",
+        columns.len()
+    );
+
+    for (i, &column) in columns.iter().enumerate() {
+        let rows = gauges_per_height;
+        remaining_height -= gauges_height;
+
+        log::trace!(
+            "render: rows={rows} remaining_height={remaining_height} offset={offset} column.size=({}, {})",
+            column.width,
+            column.height,
+        );
+
+        let gauges_areas = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(std::iter::repeat_n(
+                Constraint::Length(gauge_height),
+                rows as usize,
+            ))
+            .split(column);
+
+        for (&area, sim) in gauges_areas.iter().zip(simulations.iter().skip(offset)) {
+            log::trace!("render: render col={i}, sim={}", sim.thread_id);
+            let [gauge_area, _, run_number_area] = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Fill(1),
+                    Constraint::Length(2),
+                    Constraint::Length(10),
+                ])
+                .areas(area);
+
+            let style = Style::new();
+            let style = if sim.failed {
+                style.red()
+            } else {
+                style.white()
+            };
+            let style = style.on_black().italic();
+
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let percent = ((sim.progress * 100.0).round() as u16).clamp(0, 100);
+
+            let gauge = Gauge::default()
+                .block(Block::bordered().title(format!("Thread {}: ", sim.thread_id)))
+                .gauge_style(style)
+                .percent(percent);
+
+            frame.render_widget(gauge, gauge_area);
+
+            let run_number = Paragraph::new(format!("Run {}", sim.run_number))
+                .block(Block::default().padding(Padding::vertical(1)))
+                .alignment(Alignment::Left);
+
+            frame.render_widget(run_number, run_number_area);
+        }
+
+        offset += rows as usize;
     }
 
     drop(simulations);

@@ -45,7 +45,7 @@ thread_local! {
 fn gen_step_multiplier() -> u64 {
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     let value = {
-        let value = dst_demo_random::rng().gen_range_disti(1..1_000_000, 10);
+        let value = dst_demo_random::rng().gen_range_disti(1..1_000_000_000, 20);
         if value == 0 { 1 } else { value }
     };
     std::env::var("SIMULATOR_STEP_MULTIPLIER")

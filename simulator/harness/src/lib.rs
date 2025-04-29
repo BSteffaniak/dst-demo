@@ -205,6 +205,18 @@ fn run_info_end(
 
 static END_SIM: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
 
+#[cfg(feature = "tui")]
+static DISPLAY_STATE: LazyLock<tui::DisplayState> = LazyLock::new(tui::DisplayState::new);
+
+fn ctrl_c() {
+    log::debug!("ctrl_c called");
+    #[cfg(feature = "tui")]
+    if USE_TUI {
+        DISPLAY_STATE.exit();
+    }
+    end_sim();
+}
+
 pub fn end_sim() {
     END_SIM.store(true, std::sync::atomic::Ordering::SeqCst);
 
@@ -331,23 +343,19 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
     // claim thread_id 1 for main thread
     let _ = thread_id();
 
-    ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
+    ctrlc::set_handler(ctrl_c).expect("Error setting Ctrl-C handler");
 
     #[cfg(feature = "pretty_env_logger")]
     init_pretty_env_logger()?;
 
     #[cfg(feature = "tui")]
-    let display_state = tui::DisplayState::new();
-
-    #[cfg(feature = "tui")]
     let tui_handle = if USE_TUI {
-        Some(tui::spawn(display_state.clone()))
+        Some(tui::spawn(DISPLAY_STATE.clone()))
     } else {
         None
     };
 
     let runs = *RUNS;
-
     let max_parallel = *MAX_PARALLEL;
 
     log::debug!("Running simulation with max_parallel={max_parallel}");
@@ -357,7 +365,7 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
         runs,
         max_parallel,
         #[cfg(feature = "tui")]
-        display_state.clone(),
+        DISPLAY_STATE.clone(),
     );
 
     let resp = sim_orchestrator.start();
@@ -616,21 +624,22 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         #[cfg(feature = "tui")]
         self.display_state
-            .update_sim_progress(thread_id.unwrap_or(1), run_number, 0.0);
+            .update_sim_state(thread_id.unwrap_or(1), run_number, 0.0, false);
 
         self.bootstrap.on_start(&mut managed_sim);
 
         let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
             let print_step = |sim: &Sim<'_>, step| {
-                #[allow(clippy::cast_precision_loss)]
                 if duration < Duration::MAX {
-                    let progress = step as f64 / duration_steps as f64;
+                    #[allow(clippy::cast_precision_loss)]
+                    let progress = (step as f64 / duration_steps as f64).clamp(0.0, 1.0);
 
                     #[cfg(feature = "tui")]
-                    self.display_state.update_sim_progress(
+                    self.display_state.update_sim_state(
                         thread_id.unwrap_or(1),
                         run_number,
                         progress,
+                        false,
                     );
 
                     log::info!(
@@ -678,6 +687,20 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                         {
                             break;
                         }
+                        #[cfg(feature = "tui")]
+                        self.display_state.update_sim_state(
+                            thread_id.unwrap_or(1),
+                            run_number,
+                            #[allow(clippy::cast_precision_loss)]
+                            if duration < Duration::MAX {
+                                (dst_demo_simulator_utils::current_step() as f64
+                                    / duration_steps as f64)
+                                    .clamp(0.0, 1.0)
+                            } else {
+                                0.0
+                            },
+                            true,
+                        );
                         return Err(e);
                     }
                 }
@@ -698,6 +721,19 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         let panic = panic.lock().unwrap().clone();
         let success = resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none();
+
+        #[cfg(feature = "tui")]
+        self.display_state.update_sim_state(
+            thread_id.unwrap_or(1),
+            run_number,
+            #[allow(clippy::cast_precision_loss)]
+            if duration < Duration::MAX {
+                dst_demo_simulator_utils::current_step() as f64 / duration_steps as f64
+            } else {
+                0.0
+            },
+            !success,
+        );
 
         log_message(format!(
             "\n\

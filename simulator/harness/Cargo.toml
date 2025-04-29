@@ -32,6 +32,7 @@ shell-words = { workspace = true }
 turmoil     = { workspace = true }
 
 # TUI
+gag     = { workspace = true, optional = true }
 ratatui = { workspace = true, optional = true }
 
 # Logging
@@ -47,6 +48,6 @@ random = []
 tcp    = ["dep:dst_demo_tcp"]
 time   = ["dep:dst_demo_time"]
 
-tui = ["dep:ratatui"]
+tui = ["dep:gag", "dep:ratatui"]
 
 pretty_env_logger = ["dep:pretty_env_logger"]

@@ -364,7 +364,6 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
 
     #[cfg(feature = "tui")]
     if let Some(tui_handle) = tui_handle {
-        display_state.exit();
         tui_handle.join().unwrap()?;
     }
 

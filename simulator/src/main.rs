@@ -2,6 +2,8 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
+use std::process::ExitCode;
+
 use dst_demo_server_simulator::{banker_count, client, handle_actions, host, reset_banker_count};
 use dst_demo_simulator_harness::{CancellableSim, SimBootstrap, SimConfig, run_simulation};
 
@@ -37,8 +39,12 @@ impl SimBootstrap for Simulator {
     }
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run_simulation(Simulator)?;
+fn main() -> Result<ExitCode, Box<dyn std::error::Error>> {
+    let results = run_simulation(Simulator)?;
 
-    Ok(())
+    if results.iter().any(|x| !x.is_success()) {
+        return Ok(ExitCode::FAILURE);
+    }
+
+    Ok(ExitCode::SUCCESS)
 }

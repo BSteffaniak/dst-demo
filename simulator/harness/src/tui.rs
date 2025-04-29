@@ -185,10 +185,11 @@ fn render(state: &DisplayState, frame: &mut Frame) {
             ])
             .areas(area);
 
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let gauge = Gauge::default()
             .block(Block::bordered().title(format!("Thread {}: ", sim.thread_id)))
-            .gauge_style(Style::new().white().on_black().italic())
-            .ratio(sim.progress);
+            .gauge_style(style)
+            .percent(((sim.progress * 100.0).round() as u16).clamp(0, 100));
 
         frame.render_widget(gauge, gauge_area);
 

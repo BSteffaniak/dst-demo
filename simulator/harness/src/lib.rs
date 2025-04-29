@@ -214,15 +214,27 @@ pub fn end_sim() {
 }
 
 #[cfg(feature = "pretty_env_logger")]
-fn init_pretty_env_logger() {
+#[allow(clippy::unnecessary_wraps)]
+fn init_pretty_env_logger() -> std::io::Result<()> {
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    let mut builder = pretty_env_logger::formatted_builder();
 
     #[cfg(feature = "tui")]
     if USE_TUI {
-        return;
+        use std::{fs::File, path::PathBuf, str::FromStr as _};
+
+        use pretty_env_logger::env_logger::Target;
+
+        let log_dir = PathBuf::from_str(".log").unwrap();
+        std::fs::create_dir_all(&log_dir)?;
+        let simulation_log_file = log_dir.join("simulation.log");
+        let file = File::create(simulation_log_file)?;
+
+        builder.target(Target::Pipe(Box::new(file)));
     }
 
-    pretty_env_logger::formatted_builder()
+    builder
         .parse_default_env()
         .format(|buf, record| {
             static MAX_THREAD_PREFIX_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -287,6 +299,8 @@ fn init_pretty_env_logger() {
             )
         })
         .init();
+
+    Ok(())
 }
 
 /// # Panics
@@ -319,7 +333,7 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
     ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
 
     #[cfg(feature = "pretty_env_logger")]
-    init_pretty_env_logger();
+    init_pretty_env_logger()?;
 
     #[cfg(feature = "tui")]
     let display_state = tui::DisplayState::new();

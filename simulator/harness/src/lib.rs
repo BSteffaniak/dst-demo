@@ -362,6 +362,16 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
         None
     };
 
+    std::panic::set_hook(Box::new({
+        move |x| {
+            let thread_id = thread_id();
+            let panic_str = x.to_string();
+            log::debug!("caught panic on thread_id={thread_id}: {panic_str}");
+            PANIC.with_borrow_mut(|x| *x = Some(panic_str));
+            end_sim();
+        }
+    }));
+
     let runs = *RUNS;
     let max_parallel = *MAX_PARALLEL;
 
@@ -410,18 +420,6 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
     }
 
     fn start(self) -> Result<(), Box<dyn std::error::Error>> {
-        std::panic::set_hook(Box::new({
-            let prev_hook = std::panic::take_hook();
-            move |x| {
-                let thread_id = thread_id();
-                let panic_str = x.to_string();
-                log::debug!("caught panic on thread_id={thread_id}: {panic_str}");
-                PANIC.with_borrow_mut(|x| *x = Some(panic_str));
-                end_sim();
-                prev_hook(x);
-            }
-        }));
-
         let parallel = std::cmp::min(self.runs, self.max_parallel);
         let run_index = Arc::new(AtomicU64::new(0));
 

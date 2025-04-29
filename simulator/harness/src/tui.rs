@@ -6,6 +6,7 @@ use std::{
 };
 
 use gag::BufferRedirect;
+use oneshot::Sender;
 use ratatui::{
     DefaultTerminal, Frame,
     crossterm::event::{self, Event, KeyCode, KeyModifiers},
@@ -108,7 +109,15 @@ impl DisplayState {
             .store(false, std::sync::atomic::Ordering::SeqCst);
     }
 
+    fn init_terminal(&self) -> std::io::Result<()> {
+        let terminal = ratatui::try_init()?;
+        log::debug!("PANIC HOOK OVERRODE");
+        self.set_terminal(terminal)?;
+        Ok(())
+    }
+
     fn set_terminal(&self, mut terminal: DefaultTerminal) -> std::io::Result<()> {
+        log::debug!("set_terminal");
         terminal.clear()?;
         terminal.flush()?;
         terminal.set_cursor_position(Position::ORIGIN)?;
@@ -118,6 +127,7 @@ impl DisplayState {
     }
 
     fn restore(&self) -> std::io::Result<()> {
+        log::debug!("restore");
         ratatui::restore();
         let Some(terminal) = &mut *self.terminal.write().unwrap() else {
             return Ok(());
@@ -132,7 +142,13 @@ impl DisplayState {
 }
 
 pub fn spawn(state: DisplayState) -> JoinHandle<std::io::Result<()>> {
-    std::thread::spawn(move || start(&state))
+    let (tx, rx) = oneshot::channel();
+
+    let handle = std::thread::spawn(move || start(tx, &state));
+
+    let _ = rx.recv();
+
+    handle
 }
 
 #[derive(Debug, Clone)]
@@ -190,10 +206,11 @@ where
     Ok((output, resp))
 }
 
-pub fn start(state: &DisplayState) -> std::io::Result<()> {
+pub fn start(start_tx: Sender<()>, state: &DisplayState) -> std::io::Result<()> {
     let state = state.clone();
     let (output, resp) = capture_stdout(move || {
-        state.set_terminal(ratatui::init())?;
+        state.init_terminal()?;
+        start_tx.send(()).unwrap();
         let event_loop = spawn_event_loop(&state);
         let result = run(&state);
         state.restore()?;
@@ -268,8 +285,9 @@ fn render(state: &DisplayState, frame: &mut Frame) {
         .constraints(constraints)
         .split(frame.area());
 
-    let header = if *RUNS > 1 {
-        format!("Simulations {}/{}", state.runs_completed(), *RUNS)
+    let runs = *RUNS;
+    let header = if runs > 1 {
+        format!("Simulations {}/{runs}", state.runs_completed())
     } else {
         "Simulations".to_string()
     };
@@ -296,10 +314,12 @@ fn render(state: &DisplayState, frame: &mut Frame) {
         let style = style.on_black().italic();
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let percent = ((sim.progress * 100.0).round() as u16).clamp(0, 100);
+
         let gauge = Gauge::default()
             .block(Block::bordered().title(format!("Thread {}: ", sim.thread_id)))
             .gauge_style(style)
-            .percent(((sim.progress * 100.0).round() as u16).clamp(0, 100));
+            .percent(percent);
 
         frame.render_widget(gauge, gauge_area);
 

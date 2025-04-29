@@ -485,8 +485,7 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                             .run(run_index + 1, Some(thread_id))
                             .map_err(|e| e.to_string())
                         {
-                            END_SIM.store(true, std::sync::atomic::Ordering::SeqCst);
-                            cancel_global_simulation();
+                            end_sim();
                             return Err(e);
                         }
                     }

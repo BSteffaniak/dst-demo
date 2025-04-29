@@ -15,7 +15,7 @@ use dst_demo_random::rng;
 use dst_demo_simulator_utils::{
     cancel_global_simulation, cancel_simulation, is_global_simulator_cancelled,
     is_simulator_cancelled, reset_simulator_cancellation_token, reset_step,
-    run_until_simulation_cancelled, step_next, thread_id,
+    run_until_simulation_cancelled, step_next, thread_id, worker_thread_id,
 };
 use formatting::TimeFormat as _;
 use turmoil::Sim;
@@ -313,6 +313,9 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
         )
     });
 
+    // claim thread_id 1 for main thread
+    let _ = thread_id();
+
     ctrlc::set_handler(end_sim).expect("Error setting Ctrl-C handler");
 
     #[cfg(feature = "pretty_env_logger")]
@@ -426,7 +429,8 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                 let display_state = self.display_state.clone();
 
                 let handle = std::thread::spawn(move || {
-                    let thread_id = thread_id();
+                    let _ = thread_id();
+                    let thread_id = worker_thread_id();
                     let simulation = Simulation::new(
                         &*bootstrap,
                         #[cfg(feature = "tui")]

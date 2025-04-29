@@ -747,6 +747,10 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                     }
 
                     self.bootstrap.on_step(&mut managed_sim);
+
+                    #[cfg(feature = "tui")]
+                    self.display_state
+                        .update_sim_step(thread_id.unwrap_or(1), step);
                 }
 
                 match managed_sim.sim.step() {

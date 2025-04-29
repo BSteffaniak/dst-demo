@@ -21,6 +21,7 @@ use crate::{RUNS, SimConfig, end_sim};
 struct SimulationInfo {
     thread_id: u64,
     run_number: u64,
+    step: u64,
     config: SimConfig,
     progress: f64,
     failed: bool,
@@ -47,6 +48,18 @@ impl DisplayState {
     pub fn run_completed(&self) {
         let mut runs_completed = self.runs_completed.write().unwrap();
         *runs_completed += 1;
+    }
+
+    pub fn update_sim_step(&self, thread_id: u64, step: u64) {
+        if let Some(existing) = self
+            .simulations
+            .write()
+            .unwrap()
+            .iter_mut()
+            .find(|x| x.thread_id == thread_id)
+        {
+            existing.step = step;
+        }
     }
 
     pub fn update_sim_state(
@@ -76,6 +89,7 @@ impl DisplayState {
             let info = SimulationInfo {
                 thread_id,
                 run_number,
+                step: 0,
                 config,
                 progress,
                 failed,
@@ -425,8 +439,12 @@ fn render(state: &DisplayState, frame: &mut Frame) {
 
             let gauge = Gauge::default()
                 .block(Block::bordered().title(format!(
-                    "Thread {} / Run {} / Seed {}",
-                    sim.thread_id, sim.run_number, sim.config.seed
+                    "Thread {} / Run {} / Seed {} / Step [{}/{}]",
+                    sim.thread_id,
+                    sim.run_number,
+                    sim.config.seed,
+                    sim.step,
+                    sim.config.duration.as_millis()
                 )))
                 .gauge_style(style)
                 .percent(percent);

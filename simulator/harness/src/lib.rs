@@ -83,7 +83,7 @@ fn run_info(props: &SimProperties) -> String {
     let duration = if config.duration == Duration::MAX {
         "forever".to_string()
     } else {
-        config.duration.as_secs().to_string()
+        config.duration.as_millis().to_string()
     };
 
     let run_number = props.run_number;
@@ -899,7 +899,18 @@ impl SimConfig {
             std::env::var("SIMULATOR_DURATION")
                 .ok()
                 .map_or(Duration::MAX, |x| {
-                    Duration::from_secs(x.parse::<u64>().unwrap())
+                    #[allow(clippy::option_if_let_else)]
+                    if let Some(x) = x.strip_suffix("µs") {
+                        Duration::from_micros(x.parse::<u64>().unwrap())
+                    } else if let Some(x) = x.strip_suffix("ns") {
+                        Duration::from_nanos(x.parse::<u64>().unwrap())
+                    } else if let Some(x) = x.strip_suffix("ms") {
+                        Duration::from_millis(x.parse::<u64>().unwrap())
+                    } else if let Some(x) = x.strip_suffix("s") {
+                        Duration::from_secs(x.parse::<u64>().unwrap())
+                    } else {
+                        Duration::from_millis(x.parse::<u64>().unwrap())
+                    }
                 })
         });
 

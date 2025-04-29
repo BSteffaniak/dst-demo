@@ -485,10 +485,26 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                 threads.push(handle);
             }
 
+            let mut errors = vec![];
+
             for (i, thread) in threads.into_iter().enumerate() {
                 log::debug!("joining thread {i}...");
-                thread.join().unwrap()?;
-                log::debug!("thread {i} joined");
+
+                match thread.join() {
+                    Ok(x) => {
+                        if let Err(e) = x {
+                            errors.push(e);
+                        }
+                        log::debug!("thread {i} joined");
+                    }
+                    Err(e) => {
+                        log::error!("failed to join thread {i}: {e:?}");
+                    }
+                }
+            }
+
+            if !errors.is_empty() {
+                return Err(errors.join("\n").into());
             }
         }
 

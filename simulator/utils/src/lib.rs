@@ -10,15 +10,22 @@ use std::{
 use tokio_util::sync::CancellationToken;
 
 static THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
+static WORKER_THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
 
 thread_local! {
     static STEP: RefCell<AtomicU64> = const { RefCell::new(AtomicU64::new(1)) };
     static THREAD_ID: RefCell<u64> = RefCell::new(THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
+    static WORKER_THREAD_ID: RefCell<u64> = RefCell::new(WORKER_THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
 }
 
 #[must_use]
 pub fn thread_id() -> u64 {
     THREAD_ID.with_borrow(|x| *x)
+}
+
+#[must_use]
+pub fn worker_thread_id() -> u64 {
+    WORKER_THREAD_ID.with_borrow(|x| *x)
 }
 
 pub fn reset_step() {

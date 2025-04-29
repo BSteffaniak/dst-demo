@@ -242,9 +242,10 @@ fn spawn_event_loop(state: &DisplayState) -> JoinHandle<std::io::Result<()>> {
                     | Event::Paste(..)
                     | Event::Resize(..) => {}
                     Event::Key(key) => {
-                        if key.code == KeyCode::Char('c')
-                            && key.modifiers.contains(KeyModifiers::CONTROL)
-                        {
+                        let exit = (key.code == KeyCode::Char('c')
+                            && key.modifiers.contains(KeyModifiers::CONTROL))
+                            || (key.code == KeyCode::Char('q') && key.modifiers.is_empty());
+                        if exit {
                             state.exit();
                             end_sim();
                             return Ok::<_, std::io::Error>(());

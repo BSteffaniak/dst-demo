@@ -253,6 +253,8 @@ fn run(state: &DisplayState) -> std::io::Result<()> {
 }
 
 fn render(state: &DisplayState, frame: &mut Frame) {
+    log::trace!("render: start");
+
     let simulations = state.simulations.read().unwrap();
 
     let constraints = std::iter::once(Constraint::Length(1)).chain(std::iter::repeat_n(
@@ -307,4 +309,8 @@ fn render(state: &DisplayState, frame: &mut Frame) {
 
         frame.render_widget(run_number, run_number_area);
     }
+
+    drop(simulations);
+
+    log::trace!("render: end");
 }

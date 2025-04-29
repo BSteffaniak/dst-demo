@@ -300,7 +300,7 @@ async fn list_transactions(
             )
         });
 
-    for amount in plan
+    let amounts = plan
         .plan
         .iter()
         .take(usize::try_from(plan.step).unwrap())
@@ -308,7 +308,20 @@ async fn list_transactions(
             Interaction::CreateTransaction { amount } => Some(amount),
             _ => None,
         })
-    {
+        .collect::<Vec<_>>();
+
+    assert!(
+        transactions.len() >= amounts.len(),
+        "\
+        [{name} {addr}->{server_addr}] expected at least {} transactions, but only saw {}\n\
+        Actual transactions:\n\
+        {message}\
+        ",
+        amounts.len(),
+        transactions.len(),
+    );
+
+    for amount in amounts {
         assert!(
             transactions
                 .iter()
@@ -316,7 +329,7 @@ async fn list_transactions(
             "\
             [{name} {addr}->{server_addr}] Missing transaction with amount={amount}\n\
             Actual transactions:\n\
-            {message}
+            {message}\
             "
         );
     }

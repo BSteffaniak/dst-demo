@@ -4,15 +4,16 @@
 
 use std::{
     cell::RefCell,
+    collections::BTreeMap,
     panic::AssertUnwindSafe,
     sync::{
-        Arc, LazyLock,
+        Arc, LazyLock, Mutex,
         atomic::{AtomicBool, AtomicU64},
     },
     time::{Duration, SystemTime},
 };
 
-use dst_demo_random::rng;
+use dst_demo_random::{rng, simulator::seed};
 use dst_demo_simulator_utils::{
     cancel_global_simulation, cancel_simulation, current_step, is_global_simulator_cancelled,
     is_simulator_cancelled, reset_simulator_cancellation_token, reset_step,
@@ -60,32 +61,35 @@ fn log_message(msg: impl Into<String>) {
     }
 }
 
-fn run_info(run_index: u64, props: &[(String, String)]) -> String {
+fn run_info(props: &SimProperties) -> String {
+    use std::fmt::Write as _;
+
+    let config = &props.config;
+
+    let mut extra_top = String::new();
+    if let Some(thread_id) = props.thread_id {
+        write!(extra_top, "\nthread_id={thread_id}").unwrap();
+    }
     #[cfg(feature = "time")]
-    let extra = {
-        use dst_demo_time::simulator::{epoch_offset, step_multiplier};
+    write!(extra_top, "\nepoch_offset={}", config.epoch_offset).unwrap();
+    #[cfg(feature = "time")]
+    write!(extra_top, "\nstep_multiplier={}", config.step_multiplier).unwrap();
 
-        format!(
-            "\n\
-            epoch_offset={epoch_offset}\n\
-            step_multiplier={step_multiplier}",
-            epoch_offset = epoch_offset(),
-            step_multiplier = step_multiplier(),
-        )
-    };
-    #[cfg(not(feature = "time"))]
-    let extra = String::new();
-
-    let mut props_str = String::new();
-    for (k, v) in props {
-        use std::fmt::Write as _;
-
-        write!(props_str, "\n{k}={v}").unwrap();
+    let mut extra_str = String::new();
+    for (k, v) in &props.extra {
+        write!(extra_str, "\n{k}={v}").unwrap();
     }
 
+    let duration = if config.duration == Duration::MAX {
+        "forever".to_string()
+    } else {
+        config.duration.as_secs().to_string()
+    };
+
+    let run_number = props.run_number;
     let runs = *RUNS;
     let runs = if runs > 1 {
-        format!("{run_index}/{runs}")
+        format!("{run_number}/{runs}")
     } else {
         runs.to_string()
     };
@@ -93,9 +97,27 @@ fn run_info(run_index: u64, props: &[(String, String)]) -> String {
     format!(
         "\
         seed={seed}\n\
-        run={runs}\
-        {extra}{props_str}",
-        seed = dst_demo_random::simulator::seed(),
+        run={runs}{extra_top}\n\
+        tick_duration={tick_duration}\n\
+        fail_rate={fail_rate}\n\
+        repair_rate={repair_rate}\n\
+        tcp_capacity={tcp_capacity}\n\
+        udp_capacity={udp_capacity}\n\
+        enable_random_order={enable_random_order}\n\
+        min_message_latency={min_message_latency}\n\
+        max_message_latency={max_message_latency}\n\
+        duration={duration}{extra_str}\
+        ",
+        seed = config.seed,
+        tick_duration = config.tick_duration.as_millis(),
+        fail_rate = config.fail_rate,
+        repair_rate = config.repair_rate,
+        tcp_capacity = config.tcp_capacity,
+        udp_capacity = config.udp_capacity,
+        enable_random_order = config.enable_random_order,
+        min_message_latency = config.min_message_latency.as_millis(),
+        max_message_latency = config.max_message_latency.as_millis(),
+        duration = duration,
     )
 }
 
@@ -161,53 +183,6 @@ fn get_run_command(skip_env: &[&str], seed: u64) -> String {
     }
 
     format!("SIMULATOR_SEED={seed} {env_vars}{cmd}")
-}
-
-#[allow(clippy::cast_precision_loss)]
-fn run_info_end(
-    run_index: u64,
-    props: &[(String, String)],
-    successful: bool,
-    steps: u64,
-    real_time_millis: u128,
-    sim_time_millis: u128,
-) -> String {
-    let run_from_seed = if *RUNS == 1 && dst_demo_random::simulator::contains_fixed_seed() {
-        String::new()
-    } else {
-        let cmd = get_run_command(
-            &[
-                "SIMULATOR_SEED",
-                "SIMULATOR_RUNS",
-                "SIMULATOR_DURATION",
-                "SIMULATOR_MAX_PARALLEL",
-            ],
-            dst_demo_random::simulator::seed(),
-        );
-        format!("\n\nTo run again with this seed: `{cmd}`")
-    };
-    let run_from_start = if !dst_demo_random::simulator::contains_fixed_seed() && *RUNS > 1 {
-        let cmd = get_run_command(
-            &["SIMULATOR_SEED"],
-            dst_demo_random::simulator::initial_seed(),
-        );
-        format!("\nTo run entire simulation again from the first run: `{cmd}`")
-    } else {
-        String::new()
-    };
-    format!(
-        "\
-        {run_info}\n\
-        successful={successful}\n\
-        steps={steps}\n\
-        real_time_elapsed={real_time}\n\
-        simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\
-        {run_from_seed}{run_from_start}",
-        run_info = run_info(run_index, props),
-        real_time = real_time_millis.into_formatted(),
-        simulated_time = sim_time_millis.into_formatted(),
-        simulated_time_x = sim_time_millis as f64 / real_time_millis as f64,
-    )
 }
 
 static END_SIM: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
@@ -332,7 +307,9 @@ fn init_pretty_env_logger() -> std::io::Result<()> {
 ///   any panic happens, it will be wrapped into an error on the outer `Result`
 /// * If the `Sim` `step` returns an error, we return that in an Ok(Err(e))
 #[allow(clippy::let_and_return)]
-pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::error::Error>> {
+pub fn run_simulation<B: SimBootstrap>(
+    bootstrap: B,
+) -> Result<Vec<SimResult>, Box<dyn std::error::Error>> {
     static MAX_PARALLEL: LazyLock<u64> = LazyLock::new(|| {
         std::env::var("SIMULATOR_MAX_PARALLEL").ok().map_or_else(
             || {
@@ -392,7 +369,133 @@ pub fn run_simulation<B: SimBootstrap>(bootstrap: B) -> Result<(), Box<dyn std::
         tui_handle.join().unwrap()?;
     }
 
+    #[cfg(feature = "tui")]
+    if USE_TUI {
+        if let Ok(results) = &resp {
+            for result in results {
+                if let SimResult::Fail { error, panic, .. } = result {
+                    println!("{result}");
+
+                    if let Some(error) = error {
+                        println!("\n{error}");
+                    }
+                    if let Some(panic) = panic {
+                        println!("\n{panic}");
+                    }
+                }
+            }
+        }
+    }
+
     resp
+}
+
+#[derive(Debug)]
+pub struct SimProperties {
+    config: SimConfig,
+    run_number: u64,
+    thread_id: Option<u64>,
+    extra: Vec<(String, String)>,
+}
+
+#[derive(Debug)]
+pub struct SimRunProperties {
+    steps: u64,
+    real_time_millis: u128,
+    sim_time_millis: u128,
+}
+
+#[derive(Debug)]
+pub enum SimResult {
+    Success {
+        props: SimProperties,
+        run: SimRunProperties,
+    },
+    Fail {
+        props: SimProperties,
+        run: SimRunProperties,
+        error: Option<String>,
+        panic: Option<String>,
+    },
+}
+
+impl SimResult {
+    #[must_use]
+    pub const fn props(&self) -> &SimProperties {
+        match self {
+            Self::Success { props, .. } | Self::Fail { props, .. } => props,
+        }
+    }
+
+    #[must_use]
+    pub const fn config(&self) -> &SimConfig {
+        &self.props().config
+    }
+
+    #[must_use]
+    pub const fn run(&self) -> &SimRunProperties {
+        match self {
+            Self::Success { run, .. } | Self::Fail { run, .. } => run,
+        }
+    }
+
+    #[must_use]
+    pub const fn is_success(&self) -> bool {
+        matches!(self, Self::Success { .. })
+    }
+}
+
+impl std::fmt::Display for SimResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let props = self.props();
+        let config = &props.config;
+        let run = self.run();
+
+        let run_from_seed = if *RUNS == 1 && dst_demo_random::simulator::contains_fixed_seed() {
+            String::new()
+        } else {
+            let cmd = get_run_command(
+                &[
+                    "SIMULATOR_SEED",
+                    "SIMULATOR_RUNS",
+                    "SIMULATOR_DURATION",
+                    "SIMULATOR_MAX_PARALLEL",
+                ],
+                config.seed,
+            );
+            format!("\n\nTo run again with this seed: `{cmd}`")
+        };
+        let run_from_start = if !dst_demo_random::simulator::contains_fixed_seed() && *RUNS > 1 {
+            let cmd = get_run_command(
+                &["SIMULATOR_SEED"],
+                dst_demo_random::simulator::initial_seed(),
+            );
+            format!("\nTo run entire simulation again from the first run: `{cmd}`")
+        } else {
+            String::new()
+        };
+
+        #[allow(clippy::cast_precision_loss)]
+        f.write_fmt(format_args!(
+            "\n\
+            =========================== FINISH ===========================\n\
+            Server simulator finished\n\n\
+            successful={successful}\n\
+            {run_info}\n\
+            steps={steps}\n\
+            real_time_elapsed={real_time}\n\
+            simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\
+            {run_from_seed}{run_from_start}\n\
+            ==============================================================\
+            ",
+            successful = self.is_success(),
+            run_info = run_info(props),
+            steps = run.steps,
+            real_time = run.real_time_millis.into_formatted(),
+            simulated_time = run.sim_time_millis.into_formatted(),
+            simulated_time_x = run.sim_time_millis as f64 / run.real_time_millis as f64,
+        ))
+    }
 }
 
 struct SimOrchestrator<B: SimBootstrap> {
@@ -419,11 +522,12 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
         }
     }
 
-    fn start(self) -> Result<(), Box<dyn std::error::Error>> {
+    fn start(self) -> Result<Vec<SimResult>, Box<dyn std::error::Error>> {
         let parallel = std::cmp::min(self.runs, self.max_parallel);
         let run_index = Arc::new(AtomicU64::new(0));
 
         let bootstrap = Arc::new(self.bootstrap);
+        let results = Arc::new(Mutex::new(BTreeMap::new()));
 
         if self.max_parallel == 0 {
             for run_number in 1..=self.runs {
@@ -433,9 +537,9 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                     self.display_state.clone(),
                 );
 
-                simulation
-                    .run(run_number, None)
-                    .map_err(|e| e.to_string())?;
+                let result = simulation.run(run_number, None);
+
+                results.lock().unwrap().insert(0, result);
 
                 if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
                     break;
@@ -450,6 +554,7 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                 let run_index = run_index.clone();
                 let bootstrap = bootstrap.clone();
                 let runs = self.runs;
+                let results = results.clone();
                 #[cfg(feature = "tui")]
                 let display_state = self.display_state.clone();
 
@@ -479,13 +584,14 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                         log::debug!(
                             "starting simulation run_index={run_index} on thread {i} ({thread_id})"
                         );
-                        if let Err(e) = simulation
-                            .run(run_index + 1, Some(thread_id))
-                            .map_err(|e| e.to_string())
-                        {
-                            end_sim();
-                            return Err(e);
-                        }
+
+                        let result = simulation.run(run_index + 1, Some(thread_id));
+
+                        results.lock().unwrap().insert(thread_id, result);
+
+                        log::debug!(
+                            "simulation finished run_index={run_index} on thread {i} ({thread_id})"
+                        );
                     }
 
                     Ok::<_, String>(())
@@ -517,7 +623,12 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
             }
         }
 
-        Ok(())
+        Ok(Arc::try_unwrap(results)
+            .unwrap()
+            .into_inner()
+            .unwrap()
+            .into_values()
+            .collect())
     }
 }
 
@@ -540,11 +651,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn run(
-        &self,
-        run_number: u64,
-        thread_id: Option<u64>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn run(&self, run_number: u64, thread_id: Option<u64>) -> SimResult {
         if run_number > 1 {
             dst_demo_random::simulator::reset_seed();
         }
@@ -561,46 +668,11 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         self.bootstrap.init();
 
-        let builder = self.bootstrap.build_sim(sim_builder());
-        let mut builder_props = vec![
-            (
-                "tick_duration".to_string(),
-                builder.tick_duration.as_millis().to_string(),
-            ),
-            ("fail_rate".to_string(), builder.fail_rate.to_string()),
-            ("repair_rate".to_string(), builder.repair_rate.to_string()),
-            ("tcp_capacity".to_string(), builder.tcp_capacity.to_string()),
-            ("udp_capacity".to_string(), builder.udp_capacity.to_string()),
-            (
-                "enable_random_order".to_string(),
-                builder.enable_random_order.to_string(),
-            ),
-            (
-                "min_message_latency".to_string(),
-                builder.min_message_latency.as_millis().to_string(),
-            ),
-            (
-                "max_message_latency".to_string(),
-                builder.max_message_latency.as_millis().to_string(),
-            ),
-            (
-                "duration".to_string(),
-                if builder.duration == Duration::MAX {
-                    "forever".to_string()
-                } else {
-                    builder.duration.as_secs().to_string()
-                },
-            ),
-        ];
-
-        if let Some(id) = thread_id {
-            builder_props.push(("thread_id".to_string(), id.to_string()));
-        }
-
-        let duration = builder.duration;
+        let config = self.bootstrap.build_sim(SimConfig::from_rng());
+        let duration = config.duration;
         let duration_steps = duration.as_millis();
 
-        let turmoil_builder: turmoil::Builder = builder.into();
+        let turmoil_builder: turmoil::Builder = config.into();
         #[cfg(feature = "random")]
         let sim = turmoil_builder.build_with_rng(Box::new(rng()));
         #[cfg(not(feature = "random"))]
@@ -608,16 +680,19 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         let mut managed_sim = ManagedSim::new(sim);
 
-        let props = self.bootstrap.props();
-        builder_props.extend(props);
-        let props = builder_props;
+        let props = SimProperties {
+            run_number,
+            thread_id,
+            config,
+            extra: self.bootstrap.props(),
+        };
 
         log_message(format!(
             "\n\
             =========================== START ============================\n\
             Server simulator starting\n{}\n\
             ==============================================================\n",
-            run_info(run_number, &props)
+            run_info(&props)
         ));
 
         let start = SystemTime::now();
@@ -716,9 +791,40 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         let sim_time_millis = managed_sim.sim.elapsed().as_millis();
         let steps = current_step();
 
+        let run = SimRunProperties {
+            steps,
+            real_time_millis,
+            sim_time_millis,
+        };
+
         managed_sim.shutdown();
 
-        let success = resp.as_ref().is_ok_and(Result::is_ok) && PANIC.with_borrow(Option::is_none);
+        let panic = PANIC.with_borrow(Clone::clone);
+
+        let result = if let Err(e) = resp {
+            SimResult::Fail {
+                props,
+                run,
+                error: Some(format!("{e:?}")),
+                panic,
+            }
+        } else if let Ok(Err(e)) = resp {
+            SimResult::Fail {
+                props,
+                run,
+                error: Some(e.to_string()),
+                panic,
+            }
+        } else if let Some(panic) = panic {
+            SimResult::Fail {
+                props,
+                run,
+                error: None,
+                panic: Some(panic),
+            }
+        } else {
+            SimResult::Success { props, run }
+        };
 
         #[cfg(feature = "tui")]
         self.display_state.update_sim_state(
@@ -730,39 +836,18 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             } else {
                 0.0
             },
-            !success,
+            !result.is_success(),
         );
 
-        log_message(format!(
-            "\n\
-            =========================== FINISH ===========================\n\
-            Server simulator finished\n{}\n\
-            ==============================================================",
-            run_info_end(
-                run_number,
-                &props,
-                success,
-                steps,
-                real_time_millis,
-                sim_time_millis,
-            )
-        ));
+        log_message(result.to_string());
 
-        if let Some(panic) = PANIC.with_borrow(Clone::clone) {
-            return Err(panic.into());
-        }
-
-        resp.unwrap()?;
-
-        if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
-            return Ok(());
-        }
-
-        Ok(())
+        result
     }
 }
 
-pub struct SimBuilder {
+#[derive(Debug, Clone, Copy)]
+pub struct SimConfig {
+    seed: u64,
     fail_rate: f64,
     repair_rate: f64,
     tcp_capacity: u64,
@@ -772,11 +857,23 @@ pub struct SimBuilder {
     max_message_latency: Duration,
     duration: Duration,
     tick_duration: Duration,
+    #[cfg(feature = "time")]
+    epoch_offset: u64,
+    #[cfg(feature = "time")]
+    step_multiplier: u64,
 }
 
-impl SimBuilder {
-    const fn new() -> Self {
+impl Default for SimConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SimConfig {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
+            seed: 0,
             fail_rate: 0.0,
             repair_rate: 1.0,
             tcp_capacity: 64,
@@ -786,7 +883,52 @@ impl SimBuilder {
             max_message_latency: Duration::from_millis(1000),
             duration: Duration::MAX,
             tick_duration: Duration::from_millis(1),
+            #[cfg(feature = "time")]
+            epoch_offset: 0,
+            #[cfg(feature = "time")]
+            step_multiplier: 1,
         }
+    }
+
+    #[must_use]
+    pub fn from_rng() -> Self {
+        static DURATION: LazyLock<Duration> = LazyLock::new(|| {
+            std::env::var("SIMULATOR_DURATION")
+                .ok()
+                .map_or(Duration::MAX, |x| {
+                    Duration::from_secs(x.parse::<u64>().unwrap())
+                })
+        });
+
+        let mut config = Self::new();
+        config.seed = seed();
+
+        let min_message_latency = rng().gen_range_dist(0..=1000, 1.0);
+
+        config
+            .fail_rate(0.0)
+            .repair_rate(1.0)
+            .tcp_capacity(64)
+            .udp_capacity(64)
+            .enable_random_order(true)
+            .min_message_latency(Duration::from_millis(min_message_latency))
+            .max_message_latency(Duration::from_millis(
+                rng().gen_range(min_message_latency..2000),
+            ))
+            .duration(*DURATION);
+
+        #[cfg(feature = "time")]
+        {
+            config.epoch_offset = dst_demo_time::simulator::epoch_offset();
+            config.step_multiplier = dst_demo_time::simulator::step_multiplier();
+        }
+
+        #[cfg(feature = "time")]
+        config.tick_duration(Duration::from_millis(
+            dst_demo_time::simulator::step_multiplier(),
+        ));
+
+        config
     }
 
     pub const fn fail_rate(&mut self, fail_rate: f64) -> &mut Self {
@@ -836,8 +978,8 @@ impl SimBuilder {
 }
 
 #[allow(clippy::fallible_impl_from)]
-impl From<SimBuilder> for turmoil::Builder {
-    fn from(value: SimBuilder) -> Self {
+impl From<SimConfig> for turmoil::Builder {
+    fn from(value: SimConfig) -> Self {
         let mut builder = Self::new();
 
         builder
@@ -858,39 +1000,6 @@ impl From<SimBuilder> for turmoil::Builder {
     }
 }
 
-fn sim_builder() -> SimBuilder {
-    static DURATION: LazyLock<Duration> = LazyLock::new(|| {
-        std::env::var("SIMULATOR_DURATION")
-            .ok()
-            .map_or(Duration::MAX, |x| {
-                Duration::from_secs(x.parse::<u64>().unwrap())
-            })
-    });
-
-    let mut builder = SimBuilder::new();
-
-    let min_message_latency = rng().gen_range_dist(0..=1000, 1.0);
-
-    builder
-        .fail_rate(0.0)
-        .repair_rate(1.0)
-        .tcp_capacity(64)
-        .udp_capacity(64)
-        .enable_random_order(true)
-        .min_message_latency(Duration::from_millis(min_message_latency))
-        .max_message_latency(Duration::from_millis(
-            rng().gen_range(min_message_latency..2000),
-        ))
-        .duration(*DURATION);
-
-    #[cfg(feature = "time")]
-    builder.tick_duration(Duration::from_millis(
-        dst_demo_time::simulator::step_multiplier(),
-    ));
-
-    builder
-}
-
 pub trait SimBootstrap: Send + Sync + 'static {
     #[must_use]
     fn props(&self) -> Vec<(String, String)> {
@@ -898,8 +1007,8 @@ pub trait SimBootstrap: Send + Sync + 'static {
     }
 
     #[must_use]
-    fn build_sim(&self, builder: SimBuilder) -> SimBuilder {
-        builder
+    fn build_sim(&self, config: SimConfig) -> SimConfig {
+        config
     }
 
     fn init(&self) {}

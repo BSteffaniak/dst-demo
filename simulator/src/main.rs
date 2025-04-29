@@ -3,18 +3,18 @@
 #![allow(clippy::multiple_crate_versions)]
 
 use dst_demo_server_simulator::{banker_count, client, handle_actions, host, reset_banker_count};
-use dst_demo_simulator_harness::{CancellableSim, SimBootstrap, SimBuilder, run_simulation};
+use dst_demo_simulator_harness::{CancellableSim, SimBootstrap, SimConfig, run_simulation};
 
 pub struct Simulator;
 
 impl SimBootstrap for Simulator {
-    fn build_sim(&self, mut builder: SimBuilder) -> SimBuilder {
+    fn build_sim(&self, mut config: SimConfig) -> SimConfig {
         reset_banker_count();
         client::banker::reset_id();
 
         let tcp_capacity = std::cmp::max(banker_count(), 1) * 64;
-        builder.tcp_capacity(tcp_capacity);
-        builder
+        config.tcp_capacity(tcp_capacity);
+        config
     }
 
     fn props(&self) -> Vec<(String, String)> {
@@ -38,5 +38,7 @@ impl SimBootstrap for Simulator {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    run_simulation(Simulator)
+    run_simulation(Simulator)?;
+
+    Ok(())
 }

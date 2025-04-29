@@ -3,9 +3,10 @@
 #![allow(clippy::multiple_crate_versions)]
 
 use std::{
+    cell::RefCell,
     panic::AssertUnwindSafe,
     sync::{
-        Arc, LazyLock, Mutex,
+        Arc, LazyLock,
         atomic::{AtomicBool, AtomicU64},
     },
     time::{Duration, SystemTime},
@@ -38,6 +39,10 @@ pub mod plan;
 mod tui;
 
 const USE_TUI: bool = cfg!(feature = "tui") && std::option_env!("NO_TUI").is_none();
+
+thread_local! {
+    static PANIC: RefCell<Option<String>> = const { RefCell::new(None) };
+}
 
 static RUNS: LazyLock<u64> = LazyLock::new(|| {
     std::env::var("SIMULATOR_RUNS")
@@ -403,15 +408,13 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
     }
 
     fn start(self) -> Result<(), Box<dyn std::error::Error>> {
-        let panic = Arc::new(Mutex::new(None));
         std::panic::set_hook(Box::new({
             let prev_hook = std::panic::take_hook();
-            let panic = panic.clone();
             move |x| {
                 let thread_id = thread_id();
                 let panic_str = x.to_string();
                 log::debug!("caught panic on thread_id={thread_id}: {panic_str}");
-                *panic.lock().unwrap() = Some(panic_str);
+                PANIC.with_borrow_mut(|x| *x = Some(panic_str));
                 end_sim();
                 prev_hook(x);
             }
@@ -431,7 +434,7 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                 );
 
                 simulation
-                    .run(run_number, None, &panic)
+                    .run(run_number, None)
                     .map_err(|e| e.to_string())?;
 
                 if END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
@@ -446,7 +449,6 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
 
                 let run_index = run_index.clone();
                 let bootstrap = bootstrap.clone();
-                let panic = panic.clone();
                 let runs = self.runs;
                 #[cfg(feature = "tui")]
                 let display_state = self.display_state.clone();
@@ -478,7 +480,7 @@ impl<B: SimBootstrap> SimOrchestrator<B> {
                             "starting simulation run_index={run_index} on thread {i} ({thread_id})"
                         );
                         if let Err(e) = simulation
-                            .run(run_index + 1, Some(thread_id), &panic)
+                            .run(run_index + 1, Some(thread_id))
                             .map_err(|e| e.to_string())
                         {
                             END_SIM.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -543,7 +545,6 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         &self,
         run_number: u64,
         thread_id: Option<u64>,
-        panic: &Arc<Mutex<Option<String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if run_number > 1 {
             dst_demo_random::simulator::reset_seed();
@@ -719,8 +720,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         managed_sim.shutdown();
 
-        let panic = panic.lock().unwrap().clone();
-        let success = resp.as_ref().is_ok_and(Result::is_ok) && panic.is_none();
+        let success = resp.as_ref().is_ok_and(Result::is_ok) && PANIC.with_borrow(Option::is_none);
 
         #[cfg(feature = "tui")]
         self.display_state.update_sim_state(
@@ -749,7 +749,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             )
         ));
 
-        if let Some(panic) = panic {
+        if let Some(panic) = PANIC.with_borrow(Clone::clone) {
             return Err(panic.into());
         }
 

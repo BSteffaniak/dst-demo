@@ -281,9 +281,9 @@ fn render(state: &DisplayState, frame: &mut Frame) {
         let [gauge_area, _, run_number_area] = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(70),
+                Constraint::Percentage(100),
                 Constraint::Length(2),
-                Constraint::Percentage(30),
+                Constraint::Length(10),
             ])
             .areas(area);
 

@@ -15,12 +15,13 @@ use ratatui::{
     widgets::{Block, Gauge, Padding, Paragraph},
 };
 
-use crate::{RUNS, end_sim};
+use crate::{RUNS, SimConfig, end_sim};
 
 #[derive(Debug, Clone, Copy)]
 struct SimulationInfo {
     thread_id: u64,
     run_number: u64,
+    config: SimConfig,
     progress: f64,
     failed: bool,
 }
@@ -48,12 +49,20 @@ impl DisplayState {
         *runs_completed += 1;
     }
 
-    pub fn update_sim_state(&self, thread_id: u64, run_number: u64, progress: f64, failed: bool) {
+    pub fn update_sim_state(
+        &self,
+        thread_id: u64,
+        run_number: u64,
+        config: SimConfig,
+        progress: f64,
+        failed: bool,
+    ) {
         let mut binding = self.simulations.write().unwrap();
 
         if let Some(existing) = binding.iter_mut().find(|x| x.thread_id == thread_id) {
-            existing.progress = progress;
             existing.run_number = run_number;
+            existing.config = config;
+            existing.progress = progress;
             existing.failed = failed;
         } else {
             let mut index = None;
@@ -67,6 +76,7 @@ impl DisplayState {
             let info = SimulationInfo {
                 thread_id,
                 run_number,
+                config,
                 progress,
                 failed,
             };
@@ -422,7 +432,10 @@ fn render(state: &DisplayState, frame: &mut Frame) {
             let percent = ((sim.progress * 100.0).round() as u16).clamp(0, 100);
 
             let gauge = Gauge::default()
-                .block(Block::bordered().title(format!("Thread {}: ", sim.thread_id)))
+                .block(
+                    Block::bordered()
+                        .title(format!("Thread {} ({}) ", sim.thread_id, sim.config.seed)),
+                )
                 .gauge_style(style)
                 .percent(percent);
 

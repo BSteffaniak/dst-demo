@@ -699,7 +699,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
         #[cfg(feature = "tui")]
         self.display_state
-            .update_sim_state(thread_id.unwrap_or(1), run_number, 0.0, false);
+            .update_sim_state(thread_id.unwrap_or(1), run_number, config, 0.0, false);
 
         self.bootstrap.on_start(&mut managed_sim);
 
@@ -713,6 +713,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                     self.display_state.update_sim_state(
                         thread_id.unwrap_or(1),
                         run_number,
+                        config,
                         progress,
                         false,
                     );
@@ -766,6 +767,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                         self.display_state.update_sim_state(
                             thread_id.unwrap_or(1),
                             run_number,
+                            config,
                             #[allow(clippy::cast_precision_loss)]
                             if duration < Duration::MAX {
                                 (current_step() as f64 / duration_steps as f64).clamp(0.0, 1.0)
@@ -830,6 +832,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         self.display_state.update_sim_state(
             thread_id.unwrap_or(1),
             run_number,
+            config,
             #[allow(clippy::cast_precision_loss)]
             if duration < Duration::MAX {
                 current_step() as f64 / duration_steps as f64

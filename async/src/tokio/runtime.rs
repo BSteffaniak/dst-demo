@@ -48,13 +48,13 @@ mod test {
     #[allow(unused)]
     use pretty_assertions::{assert_eq, assert_ne};
 
-    use crate::runtime::Builder;
+    #[allow(unused)]
+    use crate::runtime::GenericRuntime as _;
+    use crate::{runtime::Builder, task, tokio::runtime::build_runtime};
 
     #[test]
-    fn rt_current_thread_runtime_spawns_new_thread() {
-        use crate::task;
-
-        let runtime = Builder::new().build().unwrap();
+    fn rt_current_thread_runtime_spawns_on_same_thread() {
+        let runtime = build_runtime(&Builder::new()).unwrap();
 
         let thread_id = std::thread::current().id();
 
@@ -67,7 +67,7 @@ mod test {
 
     #[test]
     fn rt_current_thread_runtime_block_on_same_thread() {
-        let runtime = Builder::new().build().unwrap();
+        let runtime = build_runtime(&Builder::new()).unwrap();
 
         let thread_id = std::thread::current().id();
 
@@ -81,9 +81,7 @@ mod test {
     #[cfg(feature = "rt-multi-thread")]
     #[test]
     fn rt_multi_thread_runtime_spawns_new_thread() {
-        use crate::task;
-
-        let runtime = Builder::new().max_blocking_threads(1).build().unwrap();
+        let runtime = build_runtime(Builder::new().max_blocking_threads(1)).unwrap();
 
         let thread_id = std::thread::current().id();
 
@@ -97,7 +95,7 @@ mod test {
     #[cfg(feature = "rt-multi-thread")]
     #[test]
     fn rt_multi_thread_runtime_block_on_same_thread() {
-        let runtime = Builder::new().max_blocking_threads(1).build().unwrap();
+        let runtime = build_runtime(Builder::new().max_blocking_threads(1)).unwrap();
 
         let thread_id = std::thread::current().id();
 

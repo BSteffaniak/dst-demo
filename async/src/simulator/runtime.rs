@@ -28,7 +28,6 @@ pub struct Runtime {
     spawner: Spawner,
     tasks: Arc<AtomicUsize>,
     active: Arc<AtomicBool>,
-    join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
 }
 
 impl GenericRuntime for Runtime {
@@ -36,24 +35,20 @@ impl GenericRuntime for Runtime {
     where
         F::Output: Send,
     {
+        log::trace!("block_on");
         self.start();
-        let rx = self.spawner.clone().spawn_blocking(self.clone(), f).rx;
+        let rx = self.spawner.spawn_blocking(self.clone(), f).rx;
         block_on_receiver(rx)
     }
 
     fn wait(self) -> Result<(), Error> {
-        while self.tasks.load(Ordering::Relaxed) > 0 {}
+        while self.tasks.load(Ordering::Relaxed) > 0 {
+            self.process_next_task();
+        }
 
         self.active.store(false, Ordering::SeqCst);
 
-        let Some(handle) = self.join_handle.lock().unwrap().take() else {
-            return Ok(());
-        };
-
-        handle.join().map_err(|e| {
-            log::error!("{e:?}");
-            Error::Join
-        })
+        Ok(())
     }
 }
 
@@ -68,7 +63,6 @@ impl Runtime {
             queue,
             tasks: Arc::new(AtomicUsize::new(0)),
             active: Arc::new(AtomicBool::new(false)),
-            join_handle: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -77,42 +71,21 @@ impl Runtime {
             return;
         }
 
-        let mut handle = self.join_handle.lock().unwrap();
-
-        assert!(handle.is_none(), "Runtime has already been started");
-
-        let (tx, rx) = oneshot::channel();
-
-        let runtime = self.clone();
-        *handle = Some(std::thread::spawn(move || {
-            RUNTIME.with_borrow({
-                let runtime = runtime.clone();
-                |x| {
-                    let mut binding = x.lock().unwrap();
-                    assert!(binding.is_none(), "Cannot start a Runtime within a Runtime");
-                    *binding = Some(runtime);
-                }
-            });
-
-            tx.send(()).unwrap();
-
-            while runtime.active.load(Ordering::SeqCst) {
-                if !runtime.process_next_task() {
-                    std::thread::yield_now();
-                }
+        RUNTIME.with_borrow({
+            let runtime = self.clone();
+            |x| {
+                let mut binding = x.lock().unwrap();
+                assert!(binding.is_none(), "Cannot start a Runtime within a Runtime");
+                *binding = Some(runtime);
             }
-        }));
-
-        drop(handle);
-
-        rx.recv().unwrap();
+        });
     }
 
-    fn process_next_task(&self) -> bool {
+    fn next_task(&self) -> Option<Arc<Task>> {
         let mut queue = self.queue.lock().unwrap();
         let task_count = queue.len();
         if task_count == 0 {
-            return false;
+            return None;
         }
         let index = queue
             .iter()
@@ -121,16 +94,16 @@ impl Runtime {
             .map(|(i, _)| i)
             .choose(&mut rng())
             .unwrap_or_else(|| rng().gen_range(0..task_count));
-        let task = queue.remove(index);
-        drop(queue);
 
-        if task.will_block() {
-            while task.poll().is_pending() {
-                std::thread::yield_now();
-            }
-        } else if task.poll().is_pending() {
-            task.wake();
-        }
+        Some(queue.remove(index))
+    }
+
+    fn process_next_task(&self) -> bool {
+        let Some(task) = self.next_task() else {
+            return false;
+        };
+
+        task.process();
 
         true
     }
@@ -140,7 +113,7 @@ impl Runtime {
         future: impl Future<Output = T> + Send + 'static,
     ) -> JoinHandle<T> {
         self.start();
-        self.spawner.clone().spawn(self.clone(), future)
+        self.spawner.spawn(self.clone(), future)
     }
 
     /// # Panics
@@ -179,7 +152,7 @@ pub(crate) struct Spawner {
 
 impl Spawner {
     fn spawn<T: Send + 'static>(
-        self,
+        &self,
         runtime: Runtime,
         future: impl Future<Output = T> + Send + 'static,
     ) -> JoinHandle<T> {
@@ -195,10 +168,11 @@ impl Spawner {
     }
 
     fn spawn_blocking<T: Send + 'static>(
-        self,
+        &self,
         runtime: Runtime,
         future: impl Future<Output = T> + Send + 'static,
     ) -> JoinHandle<T> {
+        log::trace!("spawn_blocking");
         let (tx, rx) = futures::channel::oneshot::channel();
 
         let wrapped = async move {
@@ -210,11 +184,11 @@ impl Spawner {
         JoinHandle { rx }
     }
 
-    fn inner_spawn(self, task: &Arc<Task>) {
+    fn inner_spawn(&self, task: &Arc<Task>) {
         self.queue.lock().unwrap().push(task.clone());
     }
 
-    fn inner_spawn_blocking(self, task: &Arc<Task>) {
+    fn inner_spawn_blocking(&self, task: &Arc<Task>) {
         self.queue.lock().unwrap().push(task.clone());
     }
 }
@@ -264,8 +238,14 @@ impl Task {
         self.future.lock().unwrap().as_mut().poll(&mut ctx)
     }
 
-    const fn will_block(&self) -> bool {
-        self.block
+    fn process(self: Arc<Self>) {
+        if self.block {
+            while self.poll().is_pending() {
+                std::thread::yield_now();
+            }
+        } else if self.poll().is_pending() {
+            self.wake();
+        }
     }
 }
 
@@ -279,10 +259,10 @@ impl Drop for Task {
 
 impl Wake for Task {
     fn wake(self: Arc<Self>) {
-        if self.will_block() {
-            self.runtime.spawner.clone().inner_spawn_blocking(&self);
+        if self.block {
+            self.runtime.spawner.inner_spawn_blocking(&self);
         } else {
-            self.runtime.spawner.clone().inner_spawn(&self);
+            self.runtime.spawner.inner_spawn(&self);
         }
     }
 }
@@ -310,4 +290,66 @@ fn block_on_receiver<T>(mut receiver: futures::channel::oneshot::Receiver<T>) ->
 #[allow(clippy::unnecessary_wraps)]
 pub(crate) fn build_runtime(_builder: &Builder) -> Result<Runtime, Error> {
     Ok(Runtime::new())
+}
+
+#[cfg(test)]
+mod test {
+    #[allow(unused)]
+    use pretty_assertions::{assert_eq, assert_ne};
+
+    use crate::{runtime::Builder, simulator::runtime::build_runtime, task};
+
+    #[test]
+    fn rt_current_thread_runtime_spawns_on_same_thread() {
+        let runtime = build_runtime(&Builder::new()).unwrap();
+
+        let thread_id = std::thread::current().id();
+
+        runtime.block_on(async move {
+            task::spawn(async move { assert_eq!(std::thread::current().id(), thread_id) });
+        });
+
+        runtime.wait().unwrap();
+    }
+
+    #[test]
+    fn rt_current_thread_runtime_block_on_same_thread() {
+        let runtime = build_runtime(&Builder::new()).unwrap();
+
+        let thread_id = std::thread::current().id();
+
+        runtime.block_on(async move {
+            assert_eq!(std::thread::current().id(), thread_id);
+        });
+
+        runtime.wait().unwrap();
+    }
+
+    #[cfg(feature = "rt-multi-thread")]
+    #[test]
+    fn rt_multi_thread_runtime_spawns_on_same_thread() {
+        let runtime = build_runtime(Builder::new().max_blocking_threads(1)).unwrap();
+
+        let thread_id = std::thread::current().id();
+
+        runtime.block_on(async move {
+            task::spawn(async move { assert_eq!(std::thread::current().id(), thread_id) });
+        });
+
+        runtime.wait().unwrap();
+    }
+
+    #[cfg(feature = "rt-multi-thread")]
+    #[test]
+    fn rt_multi_thread_runtime_block_on_same_thread() {
+        let runtime = build_runtime(Builder::new().max_blocking_threads(1)).unwrap();
+
+        let thread_id = std::thread::current().id();
+
+        runtime.block_on(async move {
+            assert_eq!(std::thread::current().id(), thread_id);
+        });
+
+        runtime.wait().unwrap();
+    }
 }

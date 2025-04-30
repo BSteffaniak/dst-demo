@@ -367,6 +367,23 @@ async fn create_transaction(
         return false;
     }
 
+    let message = match read_message(&mut String::new(), Box::pin(&mut *stream)).await {
+        Ok(x) => x,
+        Err(e) => {
+            log::debug!("[{name} {addr}->{server_addr}] create_transaction: failed to read: {e:?}");
+            return false;
+        }
+    };
+    let Some(message) = message else {
+        log::debug!("[{name} {addr}->{server_addr}] create_transaction: failed to get prompt response");
+        return false;
+    };
+
+    assert!(
+        message == "Enter the transaction amount:",
+        "[{name} {addr}->{server_addr}] expected prompt for transaction amount, instead got:\n'{message}'"
+    );
+
     let message = match read_message(&mut String::new(), Box::pin(stream)).await {
         Ok(x) => x,
         Err(e) => {
@@ -375,13 +392,13 @@ async fn create_transaction(
         }
     };
     let Some(message) = message else {
-        log::debug!("[{name} {addr}->{server_addr}] create_transaction: failed to get response");
+        log::debug!("[{name} {addr}->{server_addr}] create_transaction: failed to get transaction response");
         return false;
     };
 
     assert!(
-        message == "Enter the transaction amount:",
-        "[{name} {addr}->{server_addr}] expected prompt for transaction amount, instead got:\n'{message}'"
+        Transaction::from_str(&message).is_ok(),
+        "[{name} {addr}->{server_addr}] expected to be able to parse create_transaction response as a transaction:\n'{message}'",
     );
 
     true

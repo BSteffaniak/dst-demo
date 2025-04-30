@@ -795,7 +795,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         let end = SystemTime::now();
         let real_time_millis = end.duration_since(start).unwrap().as_millis();
         let sim_time_millis = managed_sim.sim.elapsed().as_millis();
-        let steps = current_step();
+        let steps = current_step() - 1;
 
         let run = SimRunProperties {
             steps,

@@ -122,17 +122,25 @@ This will execute a series of predefined interaction plans in a fully simulated 
 #### 🔧 Optional Environment Variables
 
 - `SIMULATOR_SEED` – set a specific seed to make a test run reproducible
-- `SIMULATOR_DURATION` – max time (in simulated seconds) before success is assumed
+- `SIMULATOR_DURATION` – max steps to simulate before success is assumed
 - `SIMULATOR_STEP_MULTIPLIER` – control how fast simulated time moves (higher = faster)
 - `SIMULATOR_EPOCH_OFFSET` – control the initial time offset in millis
+- `SIMULATOR_RUNS` – control how many simulations will run
+- `SIMULATOR_MAX_PARALLEL` – control how many threads are allowed to be spun up to run simulations on
+- `SIMULATOR_BANKER_COUNT` – control how many banker clients will be used to interact with the simulated server host
+- `RUST_LOG` – control log verbosity (`trace`, `debug`, `info`, `warn`, `error`)
 
 ##### Example:
 
 ```bash
 SIMULATOR_SEED=123 \
-    SIMULATOR_DURATION=60 \
+    SIMULATOR_DURATION=1000 \
     SIMULATOR_STEP_MULTIPLIER=10 \
     SIMULATOR_EPOCH_OFFSET=1745529640464 \
+    SIMULATOR_RUNS=100 \
+    SIMULATOR_MAX_PARALLEL=8 \
+    SIMULATOR_BANKER_COUNT=15 \
+    RUST_LOG="debug" \
     cargo run --release -p dst_demo_server_simulator
 ```
 

@@ -255,17 +255,29 @@ impl std::fmt::Display for SimResult {
             String::new()
         };
 
+        let (error, panic) = match self {
+            Self::Success { .. } => (String::new(), String::new()),
+            Self::Fail { error, panic, .. } => (
+                error
+                    .as_ref()
+                    .map_or_else(String::new, |x| format!("\n\nError:\n{x}")),
+                panic
+                    .as_ref()
+                    .map_or_else(String::new, |x| format!("\n\nPanic:\n{x}")),
+            ),
+        };
+
         #[allow(clippy::cast_precision_loss)]
         f.write_fmt(format_args!(
-            "\n\
+            "\
             =========================== FINISH ===========================\n\
             Server simulator finished\n\n\
-            successful={successful}\n\
             {run_info}\n\
             steps={steps}\n\
             real_time_elapsed={real_time}\n\
-            simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\
-            {run_from_seed}{run_from_start}\n\
+            simulated_time_elapsed={simulated_time} ({simulated_time_x:.2}x)\n\n\
+            successful={successful}\
+            {error}{panic}{run_from_seed}{run_from_start}\n\
             ==============================================================\
             ",
             successful = self.is_success(),

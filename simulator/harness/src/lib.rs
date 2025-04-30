@@ -149,18 +149,15 @@ pub fn run_simulation<B: SimBootstrap>(
     #[cfg(feature = "tui")]
     if USE_TUI {
         if let Ok(results) = &resp {
-            for result in results {
-                if let SimResult::Fail { error, panic, .. } = result {
-                    println!("{result}");
-
-                    if let Some(error) = error {
-                        println!("\n{error}");
-                    }
-                    if let Some(panic) = panic {
-                        println!("\n{panic}");
-                    }
-                }
-            }
+            eprintln!(
+                "{}",
+                results
+                    .iter()
+                    .filter(|x| !x.is_success())
+                    .map(SimResult::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            );
         }
     }
 

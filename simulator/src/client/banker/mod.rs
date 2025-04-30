@@ -310,6 +310,12 @@ async fn list_transactions(
         })
         .collect::<Vec<_>>();
 
+    log::debug!(
+        "[{name} {addr}->{server_addr}] amounts.len={} transactions.len={}",
+        amounts.len(),
+        transactions.len(),
+    );
+
     assert!(
         transactions.len() >= amounts.len(),
         "\

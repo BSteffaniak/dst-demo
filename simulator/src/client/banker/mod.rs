@@ -225,7 +225,7 @@ async fn get_transaction(
 
     assert!(
         message == "Enter the transaction ID:",
-        "Expected prompt for transaction ID, instead got:\n'{message}'"
+        "[{name} {addr}->{server_addr}] expected prompt for transaction ID, instead got:\n'{message}'"
     );
     if !send_message(name, server_addr, addr, stream, id.to_string()).await {
         log::debug!("[{name} {addr}->{server_addr}] get_transaction: id failed to send");
@@ -247,7 +247,7 @@ async fn get_transaction(
     assert!(
         message == "Transaction not found"
             || Transaction::from_str(&message).is_ok_and(|x| x.id == id),
-        "Expected transaction response, instead got:\n'{message}'"
+        "[{name} {addr}->{server_addr}] expected transaction response, instead got:\n'{message}'"
     );
 
     true
@@ -327,7 +327,7 @@ async fn list_transactions(
                 .iter()
                 .any(|x| format!("{:.2}", x.amount) == format!("{amount:.2}")),
             "\
-            [{name} {addr}->{server_addr}] Missing transaction with amount={amount}\n\
+            [{name} {addr}->{server_addr}] missing transaction with amount={amount}\n\
             Actual transactions:\n\
             {message}\
             "
@@ -375,7 +375,7 @@ async fn create_transaction(
 
     assert!(
         message == "Enter the transaction amount:",
-        "Expected prompt for transaction amount, instead got:\n'{message}'"
+        "[{name} {addr}->{server_addr}] expected prompt for transaction amount, instead got:\n'{message}'"
     );
 
     true
@@ -419,7 +419,7 @@ async fn void_transaction(
 
     assert!(
         message == "Enter the transaction ID:",
-        "Expected prompt for transaction ID, instead got:\n'{message}'"
+        "[{name} {addr}->{server_addr}] expected prompt for transaction ID, instead got:\n'{message}'"
     );
 
     true
@@ -443,13 +443,13 @@ async fn get_balance(name: &str, server_addr: &str, addr: &str, stream: &mut Tcp
         return false;
     };
 
-    assert!(message.starts_with('$'), "Expected a monetary response");
+    assert!(message.starts_with('$'), "[{name} {addr}->{server_addr}] expected a monetary response");
 
     let message = message.strip_prefix('$').unwrap();
 
     assert!(
         Decimal::from_str(message).is_ok(),
-        "Expected a decimal balance"
+        "[{name} {addr}->{server_addr}] [{name} {addr}->{server_addr}] expected a decimal balance"
     );
 
     true

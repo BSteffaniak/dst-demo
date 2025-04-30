@@ -8,11 +8,11 @@ use std::{
 };
 
 use async_trait::async_trait;
+use dst_demo_async::sync::{Mutex, RwLock, RwLockReadGuard};
 use dst_demo_fs::sync::{File, OpenOptions};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
-use tokio::sync::{Mutex, RwLock, RwLockReadGuard};
 
 pub type TransactionId = i32;
 pub type BankAccountBalance = Decimal;
@@ -33,7 +33,7 @@ pub trait Bank: Send + Sync {
     /// * If the `Bank` implementation fails to list the `Transaction`s
     async fn list_transactions(
         &self,
-    ) -> Result<tokio::sync::RwLockReadGuard<Vec<Transaction>>, Error>;
+    ) -> Result<dst_demo_async::sync::RwLockReadGuard<Vec<Transaction>>, Error>;
 
     /// # Errors
     ///

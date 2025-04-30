@@ -11,10 +11,10 @@ use std::{
 };
 
 use bank::{Bank, LocalBank, TransactionId};
+use dst_demo_async::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio_util::sync::CancellationToken;
 
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
@@ -22,6 +22,8 @@ pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error(transparent)]
+    Async(#[from] dst_demo_async::Error),
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
@@ -78,7 +80,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                 let mut message = String::new();
                 let bank = bank.clone();
 
-                tokio::task::spawn(async move {
+                dst_demo_async::task::spawn(async move {
                     while let Ok(Some(action)) = read_message(&mut message, &mut read).await {
                         log::debug!("[{addr}] parsing action={action}");
                         let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {

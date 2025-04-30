@@ -11,6 +11,12 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
+dst_demo_async = { version = "0.1.0", path = "../async", default-features = false, features = [
+    "io",
+    "rt-multi-thread",
+    "sync",
+    "tokio",
+] }
 dst_demo_fs = { version = "0.1.0", path = "../fs", default-features = false, features = [
     "std",
 ] }
@@ -21,22 +27,17 @@ dst_demo_time = { version = "0.1.0", path = "../time", default-features = false,
     "std",
 ] }
 
-async-trait = { workspace = true }
-ctrlc = { workspace = true }
-log = { workspace = true }
-pretty_env_logger = { workspace = true }
-rust_decimal = { workspace = true, features = ["serde", "std"] }
+async-trait         = { workspace = true }
+ctrlc               = { workspace = true }
+log                 = { workspace = true }
+pretty_env_logger   = { workspace = true }
+rust_decimal        = { workspace = true, features = ["serde", "std"] }
 rust_decimal_macros = { workspace = true }
-serde = { workspace = true }
-serde_json = { workspace = true }
-strum = { workspace = true, features = ["derive"] }
-thiserror = { workspace = true }
-tokio = { workspace = true, features = [
-    "io-util",
-    "macros",
-    "rt-multi-thread",
-] }
-tokio-util = { workspace = true }
+serde               = { workspace = true }
+serde_json          = { workspace = true }
+strum               = { workspace = true, features = ["derive"] }
+thiserror           = { workspace = true }
+tokio-util          = { workspace = true }
 
 [features]
 default = []

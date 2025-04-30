@@ -5,7 +5,7 @@
 use std::process::ExitCode;
 
 use dst_demo_server_simulator::{banker_count, client, handle_actions, host, reset_banker_count};
-use dst_demo_simulator_harness::{CancellableSim, SimBootstrap, SimConfig, run_simulation};
+use dst_demo_simulator_harness::{Sim, SimBootstrap, SimConfig, run_simulation};
 
 pub struct Simulator;
 
@@ -23,7 +23,7 @@ impl SimBootstrap for Simulator {
         vec![("banker_count".to_string(), banker_count().to_string())]
     }
 
-    fn on_start(&self, sim: &mut impl CancellableSim) {
+    fn on_start(&self, sim: &mut impl Sim) {
         host::server::start(sim);
 
         client::health_checker::start(sim);
@@ -34,7 +34,7 @@ impl SimBootstrap for Simulator {
         }
     }
 
-    fn on_step(&self, sim: &mut impl CancellableSim) {
+    fn on_step(&self, sim: &mut impl Sim) {
         handle_actions(sim);
     }
 }

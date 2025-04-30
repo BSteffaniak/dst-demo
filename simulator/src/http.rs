@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use dst_demo_simulator_harness::turmoil::{self, net::TcpStream};
+use dst_demo_simulator_harness::tcp::TcpStream;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
 pub struct HttpResponse {
@@ -37,7 +37,7 @@ pub async fn http_request(
     method: &str,
     stream: &mut TcpStream,
     path: &str,
-) -> turmoil::Result<String> {
+) -> std::io::Result<String> {
     let host = "127.0.0.1";
 
     let request = format!(

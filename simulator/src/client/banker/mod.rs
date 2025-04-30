@@ -5,8 +5,8 @@ use dst_demo_server::{
     bank::{Transaction, TransactionId},
 };
 use dst_demo_simulator_harness::{
-    CancellableSim, plan::InteractionPlan as _, time::simulator::step_multiplier,
-    turmoil::net::TcpStream, utils::thread_id,
+    Sim, plan::InteractionPlan as _, tcp::TcpStream, time::simulator::step_multiplier,
+    utils::thread_id,
 };
 use plan::{BankerInteractionPlan, Interaction};
 use rust_decimal::Decimal;
@@ -27,7 +27,7 @@ pub fn reset_id() {
     ID.with_borrow(|x| x.store(1, std::sync::atomic::Ordering::SeqCst));
 }
 
-pub fn start(sim: &mut impl CancellableSim) {
+pub fn start(sim: &mut impl Sim) {
     let server_addr = format!("{HOST}_{}:{PORT}", thread_id());
 
     let name = format!(
@@ -375,7 +375,9 @@ async fn create_transaction(
         }
     };
     let Some(message) = message else {
-        log::debug!("[{name} {addr}->{server_addr}] create_transaction: failed to get prompt response");
+        log::debug!(
+            "[{name} {addr}->{server_addr}] create_transaction: failed to get prompt response"
+        );
         return false;
     };
 
@@ -392,7 +394,9 @@ async fn create_transaction(
         }
     };
     let Some(message) = message else {
-        log::debug!("[{name} {addr}->{server_addr}] create_transaction: failed to get transaction response");
+        log::debug!(
+            "[{name} {addr}->{server_addr}] create_transaction: failed to get transaction response"
+        );
         return false;
     };
 
@@ -466,7 +470,10 @@ async fn get_balance(name: &str, server_addr: &str, addr: &str, stream: &mut Tcp
         return false;
     };
 
-    assert!(message.starts_with('$'), "[{name} {addr}->{server_addr}] expected a monetary response");
+    assert!(
+        message.starts_with('$'),
+        "[{name} {addr}->{server_addr}] expected a monetary response"
+    );
 
     let message = message.strip_prefix('$').unwrap();
 

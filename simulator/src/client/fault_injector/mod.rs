@@ -1,11 +1,11 @@
-use dst_demo_simulator_harness::{CancellableSim, plan::InteractionPlan as _};
+use dst_demo_simulator_harness::{Sim, plan::InteractionPlan as _};
 use plan::{FaultInjectionInteractionPlan, Interaction};
 
 pub mod plan;
 
 use crate::queue_bounce;
 
-pub fn start(sim: &mut impl CancellableSim) {
+pub fn start(sim: &mut impl Sim) {
     log::debug!("Generating initial test plan");
 
     let mut plan = FaultInjectionInteractionPlan::new().with_gen_interactions(1000);

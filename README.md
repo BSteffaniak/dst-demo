@@ -185,6 +185,7 @@ By using turmoil’s simulation of network and time, this project:
 ├── server/      # Core bank app (TCP server)
 ├── tcp_client/  # Client for interacting with the server over TCP
 ├── simulator/   # Simulator harness that runs `InteractionPlan`s against the Bank server
+├── async/       # Asynchronous runtime abstraction library that allows swapping implementation between simulated and concrete at compile-time
 ├── fs/          # File-system abstraction library that allows swapping implementation between simulated and concrete at compile-time
 ├── tcp/         # TCP abstraction library that allows swapping implementation between simulated and concrete at compile-time
 ├── random/      # Random abstraction library that allows swapping implementation between simulated (deterministically seeded) and fully random at compile-time

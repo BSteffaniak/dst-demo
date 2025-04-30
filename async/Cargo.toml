@@ -1,0 +1,38 @@
+[package]
+authors     = ["Braden Steffaniak"]
+categories  = ["asynchronous"]
+description = "Async runtime package"
+edition     = "2024"
+keywords    = ["async"]
+license     = "MIT"
+name        = "dst_demo_async"
+readme      = "README.md"
+repository  = "https://github.com/BSteffaniak/dst-demo"
+version     = "0.1.0"
+
+[dependencies]
+dst_demo_random = { version = "0.1.0", path = "../random", optional = true, default-features = false, features = [
+    "rand",
+] }
+
+log       = { workspace = true }
+thiserror = { workspace = true }
+
+# Simulator
+futures = { workspace = true, optional = true }
+oneshot = { workspace = true, optional = true }
+
+# Tokio
+tokio = { workspace = true, optional = true, features = ["rt"] }
+
+[features]
+default = ["simulator", "tokio"]
+
+fail-on-warnings = []
+
+simulator = ["dep:dst_demo_random", "dep:futures", "dep:oneshot"]
+tokio     = ["dep:tokio"]
+
+io              = ["tokio?/io-util"]
+rt-multi-thread = ["tokio?/rt-multi-thread"]
+sync            = ["tokio?/sync"]

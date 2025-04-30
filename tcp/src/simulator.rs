@@ -52,6 +52,23 @@ impl GenericTcpStream<TcpStreamReadHalf, TcpStreamWriteHalf> for TcpStream {
 
         (TcpStreamReadHalf(r), TcpStreamWriteHalf(w))
     }
+
+    fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.0.local_addr()
+    }
+
+    fn peer_addr(&self) -> std::io::Result<SocketAddr> {
+        self.0.peer_addr()
+    }
+}
+
+impl TcpStream {
+    /// # Errors
+    ///
+    /// * If the underlying `turmoil::net::TcpStream` fails to connect
+    pub async fn connect(addr: &str) -> std::io::Result<Self> {
+        Ok(Self(turmoil::net::TcpStream::connect(addr).await?))
+    }
 }
 
 impl GenericTcpStreamReadHalf for TcpStreamReadHalf {}

@@ -40,6 +40,7 @@ pub mod plan;
 mod tui;
 
 const USE_TUI: bool = cfg!(feature = "tui") && std::option_env!("NO_TUI").is_none();
+const NO_LOG: bool = std::option_env!("NO_LOG").is_some();
 
 thread_local! {
     static PANIC: RefCell<Option<String>> = const { RefCell::new(None) };
@@ -211,6 +212,10 @@ pub fn end_sim() {
 #[allow(clippy::unnecessary_wraps)]
 fn init_pretty_env_logger() -> std::io::Result<()> {
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    if NO_LOG {
+        return Ok(());
+    }
 
     let mut builder = pretty_env_logger::formatted_builder();
 

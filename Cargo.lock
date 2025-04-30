@@ -388,6 +388,7 @@ dependencies = [
  "futures",
  "log",
  "oneshot",
+ "pretty_assertions",
  "thiserror 2.0.12",
  "tokio",
 ]

@@ -11,7 +11,10 @@ use std::{
 
 use dst_demo_random::{rand::rand::seq::IteratorRandom, rng};
 
-use crate::{Error, runtime::Builder};
+use crate::{
+    Error,
+    runtime::{Builder, GenericRuntime},
+};
 
 type Queue = Arc<Mutex<Vec<Arc<Task>>>>;
 
@@ -26,6 +29,32 @@ pub struct Runtime {
     tasks: Arc<AtomicUsize>,
     active: Arc<AtomicBool>,
     join_handle: Arc<Mutex<Option<std::thread::JoinHandle<()>>>>,
+}
+
+impl GenericRuntime for Runtime {
+    fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output
+    where
+        F::Output: Send,
+    {
+        self.start();
+        let rx = self.spawner.clone().spawn_blocking(self.clone(), f).rx;
+        block_on_receiver(rx)
+    }
+
+    fn wait(self) -> Result<(), Error> {
+        while self.tasks.load(Ordering::Relaxed) > 0 {}
+
+        self.active.store(false, Ordering::SeqCst);
+
+        let Some(handle) = self.join_handle.lock().unwrap().take() else {
+            return Ok(());
+        };
+
+        handle.join().map_err(|e| {
+            log::error!("{e:?}");
+            Error::Join
+        })
+    }
 }
 
 impl Runtime {
@@ -106,43 +135,12 @@ impl Runtime {
         true
     }
 
-    pub fn block_on<T: Send + 'static>(
-        &self,
-        future: impl Future<Output = T> + Send + 'static,
-    ) -> T {
-        self.start();
-        let rx = self.spawner.clone().spawn_blocking(self.clone(), future).rx;
-        block_on_receiver(rx)
-    }
-
     pub fn spawn<T: Send + 'static>(
         &self,
         future: impl Future<Output = T> + Send + 'static,
     ) -> JoinHandle<T> {
         self.start();
         self.spawner.clone().spawn(self.clone(), future)
-    }
-
-    /// # Errors
-    ///
-    /// * If the thread fails to join
-    ///
-    /// # Panics
-    ///
-    /// * If the `join_handle` `Mutex` fails to lock
-    pub fn wait(&self) -> Result<(), Error> {
-        while self.tasks.load(Ordering::Relaxed) > 0 {}
-
-        self.active.store(false, Ordering::SeqCst);
-
-        let Some(handle) = self.join_handle.lock().unwrap().take() else {
-            return Ok(());
-        };
-
-        handle.join().map_err(|e| {
-            log::error!("{e:?}");
-            Error::Join
-        })
     }
 
     /// # Panics

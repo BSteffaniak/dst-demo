@@ -28,6 +28,22 @@ macro_rules! impl_async {
         #[cfg(feature = "sync")]
         pub use $module::sync;
 
+        impl $module::runtime::Runtime {
+            pub fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output
+            where
+                F::Output: Send,
+            {
+                <Self as crate::runtime::GenericRuntime>::block_on(self, f)
+            }
+
+            /// # Errors
+            ///
+            /// * If the `Runtime` fails to join
+            pub fn wait(self) -> Result<(), Error> {
+                <Self as crate::runtime::GenericRuntime>::wait(self)
+            }
+        }
+
         impl crate::runtime::Builder {
             /// # Errors
             ///

@@ -278,7 +278,9 @@ fn block_on_receiver<T>(mut receiver: futures::channel::oneshot::Receiver<T>) ->
             Poll::Ready(Err(..)) => panic!("Task was cancelled"),
             Poll::Pending => {
                 if let Some(runtime) = Runtime::current() {
-                    runtime.process_next_task();
+                    if !runtime.process_next_task() {
+                        std::thread::yield_now();
+                    }
                 } else {
                     std::thread::yield_now();
                 }

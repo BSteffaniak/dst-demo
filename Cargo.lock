@@ -116,6 +116,7 @@ version = "0.1.0"
 dependencies = [
  "dst_demo_async",
  "dst_demo_random",
+ "pretty_env_logger",
 ]
 
 [[package]]

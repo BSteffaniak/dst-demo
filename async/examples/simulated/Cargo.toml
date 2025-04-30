@@ -16,6 +16,8 @@ dst_demo_random = { version = "0.1.0", path = "../../../random", default-feature
     "simulator",
 ] }
 
+pretty_env_logger = { workspace = true }
+
 [features]
 default = []
 

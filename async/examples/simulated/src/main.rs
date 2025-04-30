@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use dst_demo_async::{
     Error,
     runtime::Builder,
@@ -7,7 +9,7 @@ use dst_demo_async::{
 use dst_demo_random::{rng, simulator::initial_seed};
 
 fn main() -> Result<(), Error> {
-    use std::time::SystemTime;
+    pretty_env_logger::init();
 
     let runtime = Builder::new().build()?;
 

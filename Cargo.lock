@@ -449,6 +449,7 @@ name = "dst_demo_simulator_harness"
 version = "0.1.0"
 dependencies = [
  "ctrlc",
+ "dst_demo_async",
  "dst_demo_fs",
  "dst_demo_random",
  "dst_demo_simulator_utils",

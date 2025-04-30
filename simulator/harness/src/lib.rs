@@ -24,6 +24,8 @@ use formatting::TimeFormat as _;
 pub use config::{SimConfig, SimProperties, SimResult, SimRunProperties};
 pub use dst_demo_simulator_utils as utils;
 
+#[cfg(feature = "async")]
+pub use dst_demo_async as unsync;
 #[cfg(feature = "fs")]
 pub use dst_demo_fs as fs;
 #[cfg(feature = "random")]

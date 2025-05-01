@@ -47,10 +47,11 @@ pub(crate) fn build_runtime(#[allow(unused)] builder: &Builder) -> Result<Runtim
 mod test {
     #[allow(unused)]
     use pretty_assertions::{assert_eq, assert_ne};
+    use tokio::task;
 
     #[allow(unused)]
     use crate::runtime::GenericRuntime as _;
-    use crate::{runtime::Builder, task, tokio::runtime::build_runtime};
+    use crate::{runtime::Builder, tokio::runtime::build_runtime};
 
     #[test]
     fn rt_current_thread_runtime_spawns_on_same_thread() {

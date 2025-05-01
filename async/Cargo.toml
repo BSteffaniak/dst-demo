@@ -28,7 +28,7 @@ tokio = { workspace = true, optional = true, features = ["rt"] }
 pretty_assertions = { workspace = true }
 
 [features]
-default = ["simulator", "tokio"]
+default = ["fs", "io", "net", "rt-multi-thread", "simulator", "sync", "tokio"]
 
 fail-on-warnings = []
 
@@ -37,5 +37,6 @@ tokio     = ["dep:tokio"]
 
 fs              = ["tokio?/fs"]
 io              = ["tokio?/io-util"]
+net             = ["tokio?/net"]
 rt-multi-thread = ["tokio?/rt-multi-thread"]
 sync            = ["tokio?/sync"]

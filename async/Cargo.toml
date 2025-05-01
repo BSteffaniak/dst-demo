@@ -20,7 +20,6 @@ thiserror = { workspace = true }
 
 # Simulator
 futures = { workspace = true, optional = true }
-oneshot = { workspace = true, optional = true }
 
 # Tokio
 tokio = { workspace = true, optional = true, features = ["rt"] }
@@ -33,9 +32,10 @@ default = ["simulator", "tokio"]
 
 fail-on-warnings = []
 
-simulator = ["dep:dst_demo_random", "dep:futures", "dep:oneshot", "dep:tokio"]
+simulator = ["dep:dst_demo_random", "dep:futures", "dep:tokio"]
 tokio     = ["dep:tokio"]
 
+fs              = ["tokio?/fs"]
 io              = ["tokio?/io-util"]
 rt-multi-thread = ["tokio?/rt-multi-thread"]
 sync            = ["tokio?/sync"]

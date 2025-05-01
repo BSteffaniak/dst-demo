@@ -388,7 +388,6 @@ dependencies = [
  "dst_demo_random",
  "futures",
  "log",
- "oneshot",
  "pretty_assertions",
  "thiserror 2.0.12",
  "tokio",

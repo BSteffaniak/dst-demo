@@ -398,6 +398,7 @@ name = "dst_demo_fs"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "dst_demo_async",
  "log",
  "pretty_assertions",
  "tokio",

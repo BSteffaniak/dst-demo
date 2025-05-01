@@ -10,7 +10,7 @@ pub mod unsync {
     ///
     /// * If underlying `tokio::fs::read_to_string` fails
     pub async fn read_to_string<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
-        ::tokio::fs::read_to_string(path).await
+        tokio::fs::read_to_string(path).await
     }
 
     impl From<OpenOptions> for tokio::fs::OpenOptions {

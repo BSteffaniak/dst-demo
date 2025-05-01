@@ -17,7 +17,11 @@ pub trait GenericSyncFile:
 
 #[cfg(all(feature = "async", feature = "tokio"))]
 pub trait GenericAsyncFile:
-    Send + Sync + ::tokio::io::AsyncRead + ::tokio::io::AsyncWrite + ::tokio::io::AsyncSeek
+    Send
+    + Sync
+    + dst_demo_async::io::AsyncRead
+    + dst_demo_async::io::AsyncWrite
+    + dst_demo_async::io::AsyncSeek
 {
 }
 

@@ -14,7 +14,6 @@ version     = "0.1.0"
 dst_demo_random = { version = "0.1.0", path = "../random", optional = true, default-features = false, features = [
     "rand",
 ] }
-dst_demo_simulator_utils = { version = "0.1.0", path = "../simulator/utils", optional = true, default-features = false }
 
 log = { workspace = true }
 
@@ -23,5 +22,5 @@ default = ["simulator", "std"]
 
 fail-on-warnings = []
 
-simulator = ["dep:dst_demo_random", "dep:dst_demo_simulator_utils"]
+simulator = ["dep:dst_demo_random"]
 std       = []

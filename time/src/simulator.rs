@@ -21,7 +21,7 @@ fn gen_epoch_offset() -> u64 {
 /// * If the `EPOCH_OFFSET` `RwLock` fails to write to
 pub fn reset_epoch_offset() {
     let value = gen_epoch_offset();
-    log::debug!("reset_epoch_offset to seed={value}");
+    log::trace!("reset_epoch_offset to seed={value}");
     EPOCH_OFFSET.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
 }
 
@@ -58,7 +58,7 @@ fn gen_step_multiplier() -> u64 {
 /// * If the `STEP_MULTIPLIER` `RwLock` fails to write to
 pub fn reset_step_multiplier() {
     let value = gen_step_multiplier();
-    log::debug!("reset_step_multiplier to seed={value}");
+    log::trace!("reset_step_multiplier to seed={value}");
     STEP_MULTIPLIER.with_borrow_mut(|x| *x.write().unwrap() = Some(value));
 }
 
@@ -75,6 +75,43 @@ pub fn step_multiplier() -> u64 {
     })
 }
 
+thread_local! {
+    static STEP: RefCell<RwLock<u64>> = const { RefCell::new(RwLock::new(0)) };
+}
+
+/// # Panics
+///
+/// * If the `STEP` `RwLock` fails to write to
+#[allow(clippy::must_use_candidate)]
+pub fn set_step(step: u64) -> u64 {
+    log::trace!("set_step to step={step}");
+    STEP.with_borrow_mut(|x| *x.write().unwrap() = step);
+    step
+}
+
+/// # Panics
+///
+/// * If the `STEP` `RwLock` fails to write to
+#[allow(clippy::must_use_candidate)]
+pub fn next_step() -> u64 {
+    set_step(current_step() + 1)
+}
+
+/// # Panics
+///
+/// * If the `STEP` `RwLock` fails to write to
+pub fn reset_step() {
+    set_step(0);
+}
+
+/// # Panics
+///
+/// * If the `STEP` `RwLock` fails to read from
+#[must_use]
+pub fn current_step() -> u64 {
+    STEP.with_borrow(|x| *x.read().unwrap())
+}
+
 /// # Panics
 ///
 /// * If the simulated `UNIX_EPOCH` offset is larger than a `u64` can store
@@ -82,10 +119,10 @@ pub fn step_multiplier() -> u64 {
 pub fn now() -> SystemTime {
     let epoch_offset = epoch_offset();
     let step_multiplier = step_multiplier();
-    let step = dst_demo_simulator_utils::current_step();
+    let step = current_step();
     let mult_step = step.checked_mul(step_multiplier).unwrap();
     let millis = epoch_offset.checked_add(mult_step).unwrap();
-    log::debug!(
+    log::trace!(
         "now: epoch_offset={epoch_offset} step={step} step_multiplier={step_multiplier} millis={millis}"
     );
     UNIX_EPOCH

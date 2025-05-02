@@ -13,7 +13,6 @@ static THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(
 static WORKER_THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
 
 thread_local! {
-    static STEP: RefCell<AtomicU64> = const { RefCell::new(AtomicU64::new(1)) };
     static THREAD_ID: RefCell<u64> = RefCell::new(THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
     static WORKER_THREAD_ID: RefCell<u64> = RefCell::new(WORKER_THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
 }
@@ -26,20 +25,6 @@ pub fn thread_id() -> u64 {
 #[must_use]
 pub fn worker_thread_id() -> u64 {
     WORKER_THREAD_ID.with_borrow(|x| *x)
-}
-
-pub fn reset_step() {
-    STEP.with_borrow(|x| x.store(1, std::sync::atomic::Ordering::SeqCst));
-}
-
-#[must_use]
-pub fn current_step() -> u64 {
-    STEP.with_borrow(|x| x.load(std::sync::atomic::Ordering::SeqCst))
-}
-
-#[must_use]
-pub fn step_next() -> u64 {
-    STEP.with_borrow(|x| x.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
 }
 
 thread_local! {

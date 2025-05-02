@@ -16,10 +16,11 @@ use std::{
 use color_backtrace::{BacktracePrinter, termcolor::Buffer};
 use config::run_info;
 use dst_demo_simulator_utils::{
-    cancel_global_simulation, cancel_simulation, current_step, is_global_simulator_cancelled,
-    is_simulator_cancelled, reset_simulator_cancellation_token, reset_step,
-    run_until_simulation_cancelled, step_next, thread_id, worker_thread_id,
+    cancel_global_simulation, cancel_simulation, is_global_simulator_cancelled,
+    is_simulator_cancelled, reset_simulator_cancellation_token, run_until_simulation_cancelled,
+    thread_id, worker_thread_id,
 };
+use dst_demo_time::simulator::{current_step, next_step, reset_step};
 use formatting::TimeFormat as _;
 
 pub use config::{SimConfig, SimProperties, SimResult, SimRunProperties};
@@ -417,7 +418,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
 
             loop {
                 if !is_simulator_cancelled() {
-                    let step = step_next();
+                    let step = next_step();
 
                     if duration < Duration::MAX && u128::from(step) >= duration_steps {
                         log::debug!("sim ran for {duration_steps} steps. stopping");

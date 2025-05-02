@@ -17,7 +17,7 @@ dst_demo_random = { version = "0.1.0", path = "../../random", default-features =
 dst_demo_simulator_utils = { version = "0.1.0", path = "../utils", default-features = false }
 
 dst_demo_async = { version = "0.1.0", path = "../../async", optional = true, default-features = false, features = [
-    "simulator",
+    "tokio",
 ] }
 dst_demo_fs = { version = "0.1.0", path = "../../fs", optional = true, default-features = false, features = [
     "simulator",

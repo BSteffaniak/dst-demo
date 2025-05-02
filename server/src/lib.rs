@@ -127,8 +127,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
             Ok::<_, Error>(())
         })
         .await
-        .transpose()
-        .unwrap();
+        .transpose()?;
 
     log::debug!("run finished");
 

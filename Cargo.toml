@@ -49,8 +49,12 @@ edition = "2024"
 
 [workspace.dependencies]
 async-trait = "0.1.88"
+btparse = "0.2.0"
 bytes = "1.10.1"
 clap = { version = "4.5.36", features = ["derive"] }
+color-backtrace = { version = "0.7.0", default-features = false, features = [
+    "use-btparse-crate",
+] }
 const_format = "0.2.34"
 ctrlc = "3.4.6"
 env_logger = "0.11"

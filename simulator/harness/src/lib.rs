@@ -13,6 +13,7 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use color_backtrace::{BacktracePrinter, termcolor::Buffer};
 use config::run_info;
 use dst_demo_simulator_utils::{
     cancel_global_simulation, cancel_simulation, current_step, is_global_simulator_cancelled,
@@ -76,6 +77,18 @@ pub fn end_sim() {
     }
 }
 
+fn try_get_backtrace() -> Option<String> {
+    let bt = std::backtrace::Backtrace::force_capture();
+    let bt = btparse::deserialize(&bt).ok()?;
+
+    let mut buffer = Buffer::ansi();
+    BacktracePrinter::default()
+        .print_trace(&bt, &mut buffer)
+        .ok()?;
+
+    Some(String::from_utf8_lossy(buffer.as_slice()).to_string())
+}
+
 /// # Panics
 ///
 /// * If system time went backwards
@@ -121,7 +134,10 @@ pub fn run_simulation<B: SimBootstrap>(
     std::panic::set_hook(Box::new({
         move |x| {
             let thread_id = thread_id();
-            let panic_str = x.to_string();
+            let mut panic_str = x.to_string();
+            if let Some(bt) = try_get_backtrace() {
+                panic_str = format!("{panic_str}\n{bt}");
+            }
             log::debug!("caught panic on thread_id={thread_id}: {panic_str}");
             PANIC.with_borrow_mut(|x| *x = Some(panic_str));
             end_sim();

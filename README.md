@@ -61,8 +61,7 @@ Periodically pings the server to verify its responsiveness and uptime. Ensures t
 
 ### Prerequisites
 
-- Rust
-- Cargo
+[Rust & Cargo](https://rustup.rs/) are required to build the project.
 
 This project includes three main executables:
 

@@ -73,6 +73,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     SERVER_CANCELLATION_TOKEN
         .run_until_cancelled(async move {
             while let Ok((stream, addr)) = listener.accept().await {
+                log::debug!("client connected");
                 let (mut read, mut write) = stream.into_split();
                 let mut message = String::new();
                 let bank = bank.clone();

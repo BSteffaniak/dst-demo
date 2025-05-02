@@ -62,10 +62,7 @@ impl std::fmt::Display for ServerAction {
 /// # Errors
 ///
 /// * If the `TcpListener` fails to bind
-///
-/// # Panics
-///
-/// * If the ctrl-c handler fails to be initialized
+/// * If the server TCP loop produces an error
 pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let addr = addr.into();
     let listener = TcpListener::bind(&addr).await?;

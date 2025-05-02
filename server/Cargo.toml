@@ -13,6 +13,7 @@ version     = "0.1.0"
 [dependencies]
 dst_demo_async = { version = "0.1.0", path = "../async", default-features = false, features = [
     "io",
+    "net",
     "rt-multi-thread",
     "sync",
     "tokio",

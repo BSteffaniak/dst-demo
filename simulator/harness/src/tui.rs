@@ -1,11 +1,9 @@
 use std::{
-    io::{BufRead as _, BufReader},
-    sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
+    sync::{Arc, RwLock, atomic::AtomicBool},
     thread::JoinHandle,
     time::Duration,
 };
 
-use gag::BufferRedirect;
 use oneshot::Sender;
 use ratatui::{
     DefaultTerminal, Frame,
@@ -152,14 +150,10 @@ impl DisplayState {
 
     fn restore(&self) -> std::io::Result<()> {
         log::debug!("restore");
+        if let Some(terminal) = &mut *self.terminal.write().unwrap() {
+            terminal.show_cursor()?;
+        }
         ratatui::restore();
-        let Some(terminal) = &mut *self.terminal.write().unwrap() else {
-            return Ok(());
-        };
-        terminal.show_cursor()?;
-        terminal.clear()?;
-        terminal.flush()?;
-        terminal.set_cursor_position(Position::ORIGIN)?;
 
         Ok(())
     }
@@ -175,82 +169,16 @@ pub fn spawn(state: DisplayState) -> JoinHandle<std::io::Result<()>> {
     handle
 }
 
-#[derive(Debug, Clone)]
-enum Level {
-    Output,
-    Error,
-}
-
-#[derive(Debug, Default, Clone)]
-struct StdOutput {
-    output: Vec<(Level, String)>,
-}
-
-fn capture_stdout<F, R>(func: F) -> std::io::Result<(StdOutput, R)>
-where
-    F: FnOnce() -> R + Send + 'static,
-    R: Send + 'static,
-{
-    let output = StdOutput::default();
-    let output = Arc::new(Mutex::new(output));
-
-    let stdout_buffer = BufferRedirect::stdout().unwrap();
-    let stdout_reader = BufReader::new(stdout_buffer);
-    let stderr_buffer = BufferRedirect::stderr().unwrap();
-    let stderr_reader = BufReader::new(stderr_buffer);
-
-    let stdout_reader_handle = std::thread::spawn({
-        let output = output.clone();
-        move || {
-            let mut lines = stdout_reader.lines();
-            while let Some(Ok(line)) = lines.next() {
-                output.lock().unwrap().output.push((Level::Output, line));
-            }
-            Ok::<_, std::io::Error>(())
-        }
-    });
-    let stderr_reader_handle = std::thread::spawn({
-        let output = output.clone();
-        move || {
-            let mut lines = stderr_reader.lines();
-            while let Some(Ok(line)) = lines.next() {
-                output.lock().unwrap().output.push((Level::Error, line));
-            }
-            Ok::<_, std::io::Error>(())
-        }
-    });
-
-    let resp = func();
-
-    stdout_reader_handle.join().unwrap()?;
-    stderr_reader_handle.join().unwrap()?;
-
-    let output = Arc::try_unwrap(output).unwrap().into_inner().unwrap();
-
-    Ok((output, resp))
-}
-
 pub fn start(start_tx: Sender<()>, state: &DisplayState) -> std::io::Result<()> {
-    let state = state.clone();
-    let (output, resp) = capture_stdout(move || {
-        state.init_terminal()?;
-        start_tx.send(()).unwrap();
-        let event_loop = spawn_event_loop(&state);
-        let result = run(&state);
-        state.restore()?;
-        event_loop.join().unwrap()?;
-        log::debug!("closing tui");
-        result
-    })?;
+    state.init_terminal()?;
+    start_tx.send(()).unwrap();
+    let event_loop = spawn_event_loop(state);
+    let result = run(state);
+    state.restore()?;
+    event_loop.join().unwrap()?;
+    log::debug!("closing tui");
 
-    for (level, line) in output.output {
-        match level {
-            Level::Output => println!("{line}"),
-            Level::Error => eprintln!("{line}"),
-        }
-    }
-
-    resp
+    result
 }
 
 fn spawn_event_loop(state: &DisplayState) -> JoinHandle<std::io::Result<()>> {

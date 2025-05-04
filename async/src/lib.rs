@@ -34,6 +34,9 @@ macro_rules! impl_async {
         #[cfg(feature = "util")]
         pub use $module::util;
 
+        #[cfg(feature = "macros")]
+        pub use $module::select;
+
         impl $module::runtime::Runtime {
             pub fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output
             where

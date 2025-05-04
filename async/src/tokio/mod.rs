@@ -9,3 +9,6 @@ pub mod sync;
 pub mod time;
 #[cfg(feature = "util")]
 pub mod util;
+
+#[cfg(feature = "macros")]
+pub use tokio::select;

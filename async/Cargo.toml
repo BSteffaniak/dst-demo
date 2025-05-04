@@ -36,6 +36,7 @@ pretty_assertions = { workspace = true }
 default = [
     "fs",
     "io",
+    "macros",
     "net",
     "rt-multi-thread",
     "simulator",
@@ -57,6 +58,7 @@ tokio = ["dep:futures", "dep:tokio", "dep:tokio-util"]
 
 fs              = ["tokio?/fs"]
 io              = ["tokio?/io-util"]
+macros          = ["tokio?/macros"]
 net             = ["tokio?/net"]
 rt-multi-thread = ["tokio?/rt-multi-thread"]
 sync            = ["tokio?/sync"]

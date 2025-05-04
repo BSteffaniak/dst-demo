@@ -5,3 +5,5 @@ pub mod task;
 pub mod io;
 #[cfg(feature = "sync")]
 pub mod sync;
+#[cfg(feature = "time")]
+pub mod time;

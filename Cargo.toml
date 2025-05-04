@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "async",
+    "async/examples/cancel",
     "async/examples/simulated",
     "fs",
     "random",

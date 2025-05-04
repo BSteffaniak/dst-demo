@@ -23,6 +23,8 @@ macro_rules! impl_async {
     ($module:ident $(,)?) => {
         pub use $module::task;
 
+        pub use $module::runtime::Runtime;
+
         #[cfg(feature = "io")]
         pub use $module::io;
         #[cfg(feature = "sync")]

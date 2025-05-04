@@ -111,6 +111,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "async_cancel"
+version = "0.1.0"
+dependencies = [
+ "ctrlc",
+ "dst_demo_async",
+ "pretty_env_logger",
+]
+
+[[package]]
 name = "async_simulated"
 version = "0.1.0"
 dependencies = [

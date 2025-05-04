@@ -10,7 +10,8 @@ version     = "0.1.0"
 
 [dependencies]
 dst_demo_async = { version = "0.1.0", path = "../..", default-features = false, features = [
-    "simulator",
+    "time",
+    "tokio",
 ] }
 dst_demo_random = { version = "0.1.0", path = "../../../random", default-features = false, features = [
     "simulator",
@@ -22,3 +23,5 @@ pretty_env_logger = { workspace = true }
 default = []
 
 fail-on-warnings = []
+
+simulator = ["dst_demo_async/simulator"]

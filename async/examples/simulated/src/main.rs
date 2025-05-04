@@ -1,11 +1,6 @@
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
-use dst_demo_async::{
-    Error,
-    runtime::Builder,
-    simulator::{futures::Sleep, runtime},
-    task,
-};
+use dst_demo_async::{Error, runtime::Builder, task, time};
 use dst_demo_random::{rng, simulator::initial_seed};
 
 fn main() -> Result<(), Error> {
@@ -13,10 +8,11 @@ fn main() -> Result<(), Error> {
 
     let runtime = Builder::new().build()?;
 
-    runtime.block_on(async {
+    runtime.spawn(async {
         let seed = initial_seed();
 
         println!("Begin Asynchronous Execution (seed={seed})");
+        time::sleep(Duration::from_millis(1)).await;
         // Create a random number generator so we can generate random numbers
         // A small function to generate the time in seconds when we call it.
         let time = || {
@@ -38,27 +34,26 @@ fn main() -> Result<(), Error> {
                 println!("Spawned Fn #{:02}: Start {}", i, time());
                 // This future will sleep for a certain amount of time before
                 // continuing execution
-                Sleep::new(1000 * random).await;
+                time::sleep(Duration::from_millis(1000 * random)).await;
                 // After the future waits for a while, it then spawns another
                 // future before printing that it finished. This spawned future
                 // then sleeps for a while and then prints out when it's done.
                 // Since we're spawning futures inside futures, the order of
                 // execution can change.
                 task::spawn(async move {
-                    Sleep::new(1000 * random2).await;
+                    time::sleep(Duration::from_millis(1000 * random2)).await;
                     println!("Spawned Fn #{:02}: Inner {}", i, time());
                 });
                 println!("Spawned Fn #{:02}: Ended {}", i, time());
             });
         }
-        // To demonstrate that block_on works we block inside this future before
-        // we even begin polling the other futures.
-        runtime::block_on(async {
-            // This sleeps longer than any of the spawned functions, but we poll
-            // this to completion first even if we await here.
-            Sleep::new(11000).await;
-            println!("Blocking Function Polled To Completion");
-        });
+    });
+    runtime.block_on(async {
+        println!("block on");
+        // This sleeps longer than any of the spawned functions, but we poll
+        // this to completion first even if we await here.
+        time::sleep(Duration::from_millis(11000)).await;
+        println!("Blocking Function Polled To Completion");
     });
 
     // We now wait on the runtime to complete each of the tasks that were

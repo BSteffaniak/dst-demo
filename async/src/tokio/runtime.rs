@@ -7,6 +7,22 @@ use crate::{
 
 pub struct Runtime(tokio::runtime::Runtime);
 
+impl Default for Runtime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Runtime {
+    /// # Panics
+    ///
+    /// * If `build_runtime` fails
+    #[must_use]
+    pub fn new() -> Self {
+        build_runtime(&Builder::new()).unwrap()
+    }
+}
+
 impl GenericRuntime for Runtime {
     fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output
     where

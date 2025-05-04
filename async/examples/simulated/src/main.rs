@@ -1,12 +1,12 @@
 use std::time::{Duration, SystemTime};
 
-use dst_demo_async::{Error, runtime::Builder, task, time};
+use dst_demo_async::{Error, Runtime, task, time};
 use dst_demo_random::{rng, simulator::initial_seed};
 
 fn main() -> Result<(), Error> {
     pretty_env_logger::init();
 
-    let runtime = Builder::new().build()?;
+    let runtime = Runtime::new();
 
     runtime.spawn(async {
         let seed = initial_seed();

@@ -30,6 +30,12 @@ pub struct Runtime {
     active: Arc<AtomicBool>,
 }
 
+impl Default for Runtime {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl GenericRuntime for Runtime {
     fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output
     where
@@ -53,7 +59,8 @@ impl GenericRuntime for Runtime {
 }
 
 impl Runtime {
-    fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         let queue = Arc::new(Mutex::new(vec![]));
 
         Self {

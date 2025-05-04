@@ -8,3 +8,5 @@ pub mod io;
 pub mod sync;
 #[cfg(feature = "time")]
 pub mod time;
+#[cfg(feature = "util")]
+pub mod util;

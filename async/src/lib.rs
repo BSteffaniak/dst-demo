@@ -29,6 +29,8 @@ macro_rules! impl_async {
         pub use $module::sync;
         #[cfg(feature = "time")]
         pub use $module::time;
+        #[cfg(feature = "util")]
+        pub use $module::util;
 
         impl $module::runtime::Runtime {
             pub fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output

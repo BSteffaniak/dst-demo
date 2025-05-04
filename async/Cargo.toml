@@ -23,6 +23,7 @@ futures = { workspace = true, optional = true }
 
 # Tokio
 tokio = { workspace = true, optional = true, features = ["rt"] }
+tokio-util       = { workspace = true, optional = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
@@ -41,3 +42,4 @@ net             = ["tokio?/net"]
 rt-multi-thread = ["tokio?/rt-multi-thread"]
 sync            = ["tokio?/sync"]
 time            = ["tokio?/time"]
+util            = ["dep:tokio-util"]

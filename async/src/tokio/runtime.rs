@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use tokio::task::JoinHandle;
+
 use crate::{
     Error,
     runtime::{Builder, GenericRuntime},
@@ -20,6 +22,13 @@ impl Runtime {
     #[must_use]
     pub fn new() -> Self {
         build_runtime(&Builder::new()).unwrap()
+    }
+
+    pub fn spawn<T: Send + 'static>(
+        &self,
+        future: impl Future<Output = T> + Send + 'static,
+    ) -> JoinHandle<T> {
+        self.0.spawn(future)
     }
 }
 

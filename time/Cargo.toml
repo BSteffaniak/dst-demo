@@ -15,12 +15,13 @@ dst_demo_random = { version = "0.1.0", path = "../random", optional = true, defa
     "rand",
 ] }
 
-log = { workspace = true }
+log        = { workspace = true }
+scoped-tls = { workspace = true, optional = true }
 
 [features]
 default = ["simulator", "std"]
 
 fail-on-warnings = []
 
-simulator = ["dep:dst_demo_random"]
+simulator = ["dep:dst_demo_random", "dep:scoped-tls"]
 std       = []

@@ -4,6 +4,18 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+use scoped_tls::scoped_thread_local;
+
+pub struct RealTime;
+
+scoped_thread_local! {
+    static REAL_TIME: RealTime
+}
+
+pub fn with_real_time<T>(f: impl FnOnce() -> T) -> T {
+    REAL_TIME.set(&RealTime, f)
+}
+
 thread_local! {
     static EPOCH_OFFSET: RefCell<RwLock<Option<u64>>> = const { RefCell::new(RwLock::new(None)) };
 }
@@ -117,6 +129,10 @@ pub fn current_step() -> u64 {
 /// * If the simulated `UNIX_EPOCH` offset is larger than a `u64` can store
 #[must_use]
 pub fn now() -> SystemTime {
+    if REAL_TIME.is_set() {
+        return SystemTime::now();
+    }
+
     let epoch_offset = epoch_offset();
     let step_multiplier = step_multiplier();
     let step = current_step();

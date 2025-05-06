@@ -4,6 +4,8 @@
 
 #[cfg(feature = "macros")]
 pub use dst_demo_async_macros::{inject_yields, inject_yields_mod};
+#[cfg(any(feature = "tokio", feature = "simulator"))]
+pub use futures;
 
 #[cfg(feature = "tokio")]
 pub mod tokio;

@@ -62,6 +62,9 @@ pub(crate) fn build_runtime(#[allow(unused)] builder: &Builder) -> Result<Runtim
     #[cfg(not(feature = "rt-multi-thread"))]
     let mut builder = tokio::runtime::Builder::new_current_thread();
 
+    #[cfg(feature = "time")]
+    builder.enable_time();
+
     #[cfg(feature = "net")]
     builder.enable_io();
 

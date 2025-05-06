@@ -362,9 +362,6 @@ fn render(state: &DisplayState, frame: &mut Frame) {
             };
             let style = style.on_black().italic();
 
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-            let percent = ((sim.progress * 100.0).round() as u16).clamp(0, 100);
-
             let gauge = Gauge::default()
                 .block(Block::bordered().title(format!(
                     "Thread {} / Run {} / Seed {} / Step {step}",
@@ -378,7 +375,7 @@ fn render(state: &DisplayState, frame: &mut Frame) {
                     }
                 )))
                 .gauge_style(style)
-                .percent(percent);
+                .ratio(sim.progress);
 
             frame.render_widget(gauge, area);
         }

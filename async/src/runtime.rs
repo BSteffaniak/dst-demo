@@ -1,5 +1,6 @@
 use crate::Error;
 
+#[cfg(feature = "_any_backend")]
 pub use crate::Runtime;
 
 pub trait GenericRuntime {

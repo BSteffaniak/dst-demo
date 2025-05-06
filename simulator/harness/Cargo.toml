@@ -11,22 +11,22 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
+dst_demo_async = { version = "0.1.0", path = "../../async", default-features = false, features = [
+    "simulator",
+    "time",
+] }
 dst_demo_random = { version = "0.1.0", path = "../../random", default-features = false, features = [
     "simulator",
 ] }
 dst_demo_simulator_utils = { version = "0.1.0", path = "../utils", default-features = false }
+dst_demo_tcp = { version = "0.1.0", path = "../../tcp", default-features = false, features = [
+    "simulator",
+] }
 dst_demo_time = { version = "0.1.0", path = "../../time", default-features = false, features = [
     "simulator",
 ] }
 
-dst_demo_async = { version = "0.1.0", path = "../../async", optional = true, default-features = false, features = [
-    "simulator",
-    "time",
-] }
 dst_demo_fs = { version = "0.1.0", path = "../../fs", optional = true, default-features = false, features = [
-    "simulator",
-] }
-dst_demo_tcp = { version = "0.1.0", path = "../../tcp", optional = true, default-features = false, features = [
     "simulator",
 ] }
 
@@ -50,10 +50,10 @@ default = ["pretty_env_logger", "tui"]
 
 fail-on-warnings = []
 
-async  = ["dep:dst_demo_async"]
+async  = []
 fs     = ["dep:dst_demo_fs"]
 random = []
-tcp    = ["dep:dst_demo_tcp"]
+tcp    = []
 time   = []
 tui    = ["dep:oneshot", "dep:ratatui"]
 

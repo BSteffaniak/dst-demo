@@ -52,6 +52,7 @@ fn inject_item(item: &mut Item, injector: &mut YieldInjector) {
     }
 }
 
+#[allow(clippy::missing_const_for_fn)]
 #[proc_macro_attribute]
 pub fn inject_yields(_attr: TokenStream, item: TokenStream) -> TokenStream {
     #[cfg(not(feature = "simulator"))]
@@ -71,30 +72,34 @@ pub fn inject_yields(_attr: TokenStream, item: TokenStream) -> TokenStream {
 /// # Panics
 ///
 /// * If fails to get the `CARGO_MANIFEST_DIR` environment variable
+#[allow(clippy::missing_const_for_fn)]
 #[proc_macro]
 pub fn inject_yields_mod(input: TokenStream) -> TokenStream {
     #[cfg(not(feature = "simulator"))]
     {
-        return item;
+        return input;
     }
 
-    let mod_decl: ItemMod = parse_macro_input!(input as ItemMod);
-    let ident = &mod_decl.ident;
-    let path = PathBuf::from_str(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .unwrap()
-        .join("src")
-        .join(format!("{ident}.rs"));
-    let code = std::fs::read_to_string(path).unwrap();
-    // parse the file’s AST, run your YieldInjector on it…
-    let mut file = syn::parse_file(&code).unwrap();
-    let mut injector = YieldInjector;
-    injector.visit_file_mut(&mut file);
-    // emit back: `pub mod x { /* transformed file.items */ }`
-    let items = file.items;
-    quote! {
-        pub mod #ident {
-            #(#items)*
+    #[allow(unreachable_code)]
+    {
+        let mod_decl: ItemMod = parse_macro_input!(input as ItemMod);
+        let ident = &mod_decl.ident;
+        let path = PathBuf::from_str(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .unwrap()
+            .join("src")
+            .join(format!("{ident}.rs"));
+        let code = std::fs::read_to_string(path).unwrap();
+        // parse the file’s AST, run your YieldInjector on it…
+        let mut file = syn::parse_file(&code).unwrap();
+        let mut injector = YieldInjector;
+        injector.visit_file_mut(&mut file);
+        // emit back: `pub mod x { /* transformed file.items */ }`
+        let items = file.items;
+        quote! {
+            pub mod #ident {
+                #(#items)*
+            }
         }
+        .into()
     }
-    .into()
 }

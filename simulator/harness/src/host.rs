@@ -15,6 +15,7 @@ scoped_thread_local! {
     static HANDLE: Handle
 }
 
+#[allow(unused)]
 #[must_use]
 pub fn current_host() -> Option<String> {
     if HANDLE.is_set() {

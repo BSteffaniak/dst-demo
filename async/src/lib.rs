@@ -9,7 +9,7 @@ use std::{
 
 #[cfg(feature = "macros")]
 pub use dst_demo_async_macros::{inject_yields, inject_yields_mod};
-#[cfg(any(feature = "tokio", feature = "simulator"))]
+#[cfg(feature = "_any_backend")]
 pub use futures;
 
 #[cfg(feature = "tokio")]

@@ -51,18 +51,20 @@ default = [
 
 fail-on-warnings = []
 
+_any_backend = []
 simulator = [
+    "_any_backend",
     "dep:dst_demo_random",
     "dep:dst_demo_time",
     "dep:futures",
     "dep:tokio",
     "dst_demo_async_macros/simulator",
 ]
-tokio = ["dep:futures", "dep:tokio", "dep:tokio-util"]
+tokio = ["_any_backend", "dep:futures", "dep:tokio", "dep:tokio-util"]
 
 fs              = ["tokio?/fs"]
 io              = ["tokio?/io-util"]
-macros          = ["dep:dst_demo_async_macros", "tokio?/macros"]
+macros          = ["dep:dst_demo_async_macros", "tokio", "tokio?/macros"]
 net             = ["tokio?/net"]
 rt-multi-thread = ["tokio?/rt-multi-thread"]
 sync            = ["tokio?/sync"]

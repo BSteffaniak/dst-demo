@@ -16,7 +16,7 @@ proc-macro = true
 [dependencies]
 log   = { workspace = true }
 quote = { workspace = true }
-syn   = { workspace = true }
+syn   = { workspace = true, features = ["full", "visit-mut"] }
 
 [features]
 default = ["simulator"]

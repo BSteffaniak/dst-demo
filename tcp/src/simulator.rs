@@ -16,12 +16,13 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::{Bytes, BytesMut};
-use dst_demo_async::{time, util::CancellationToken};
-use scoped_tls::scoped_thread_local;
-use tokio::{
+use dst_demo_async::{
     io::{AsyncRead, AsyncWrite, ReadBuf},
     sync::mpsc::{Receiver, Sender, error::TrySendError},
+    time,
+    util::CancellationToken,
 };
+use scoped_tls::scoped_thread_local;
 
 use crate::{
     Error, GenericTcpListener, GenericTcpStream, GenericTcpStreamReadHalf,
@@ -780,12 +781,6 @@ mod test {
         runtime.block_on(async move {
             let server_addr = SocketAddr::new(Ipv4Addr::new(127, 0, 0, 1).into(), 8080);
             let _listener = TcpListener::bind(server_addr.to_string()).await.unwrap();
-
-            // task::spawn(TOKEN.run_until_cancelled(async move {
-            //     while let Ok((_, addr)) = listener.accept().await {
-            //         log::debug!("client connected at addr={addr}");
-            //     }
-            // }));
 
             #[allow(clippy::collection_is_never_read)]
             let mut connections = vec![];

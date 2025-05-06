@@ -32,8 +32,11 @@ tokio      = { workspace = true, optional = true, features = ["rt"] }
 tokio-util = { workspace = true, optional = true }
 
 [dev-dependencies]
+dst_demo_time = { version = "0.1.0", path = "../time", default-features = false, features = [
+    "simulator",
+] }
 pretty_assertions = { workspace = true }
-test-log          = { workspace = true }
+test-log = { workspace = true }
 
 [features]
 default = [

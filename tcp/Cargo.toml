@@ -12,6 +12,7 @@ version     = "0.1.0"
 
 [dependencies]
 dst_demo_async = { version = "0.1.0", path = "../async", default-features = false, features = [
+    "io",
     "macros",
     "sync",
     "time",
@@ -39,5 +40,5 @@ default = ["simulator", "tokio"]
 
 fail-on-warnings = []
 
-simulator = ["dep:bytes", "dep:flume", "dep:scoped-tls"]
-tokio     = []
+simulator = ["dep:bytes", "dep:flume", "dep:scoped-tls", "dst_demo_async/simulator"]
+tokio     = ["dst_demo_async/tokio"]

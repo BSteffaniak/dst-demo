@@ -20,3 +20,5 @@ dst_demo_async = { version = "0.1.0", path = "../../async", default-features = f
 default = []
 
 fail-on-warnings = []
+
+simulator=[]

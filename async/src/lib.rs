@@ -2,6 +2,9 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
+#[cfg(feature = "macros")]
+pub use dst_demo_async_macros::{inject_yields, inject_yields_mod};
+
 #[cfg(feature = "tokio")]
 pub mod tokio;
 

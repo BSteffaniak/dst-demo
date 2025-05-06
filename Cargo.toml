@@ -3,6 +3,7 @@ members = [
     "async",
     "async/examples/cancel",
     "async/examples/simulated",
+    "async/macros",
     "fs",
     "random",
     "simulator",
@@ -71,6 +72,7 @@ paste = "1.0.15"
 pin-project-lite = "0.2.16"
 pretty_assertions = "1.4.1"
 pretty_env_logger = "0.5"
+quote = "1.0.40"
 ratatui = "0.29.0"
 reqwest = { version = "0.12.15", default-features = false, features = [
     "rustls-tls",
@@ -85,6 +87,7 @@ serde_json = "1.0.140"
 shell-words = "1.1.0"
 strum = "0.27.1"
 strum_macros = "0.27.1"
+syn = "2.0.101"
 thiserror = "2.0.12"
 tokio = { version = "1.44.2" }
 tokio-util = "0.7.14"

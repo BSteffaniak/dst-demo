@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 
 pub type TransactionId = i32;
 pub type BankAccountBalance = Decimal;
-pub type CreateTime = i32;
+pub type CreateTime = u64;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

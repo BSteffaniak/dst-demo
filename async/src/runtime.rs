@@ -1,5 +1,7 @@
 use crate::Error;
 
+pub use crate::Runtime;
+
 pub trait GenericRuntime {
     fn block_on<F: Future + Send + 'static>(&self, f: F) -> F::Output
     where

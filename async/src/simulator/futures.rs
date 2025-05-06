@@ -46,18 +46,29 @@ impl Future for Sleep {
             this.polled,
             this.completed,
         );
-        if !*this.polled {
-            log::debug!("polling sleep for the first time");
+
+        let polled = *this.polled;
+
+        if polled {
+            let duration = dst_demo_time::now().duration_since(*this.now).unwrap();
+            log::trace!(
+                "Sleep polled: {}ms/{}ms",
+                duration.as_millis(),
+                this.duration.as_millis(),
+            );
+            if duration >= *this.duration {
+                *this.completed.as_mut() = true;
+                return Poll::Ready(());
+            }
+        }
+
+        if !polled {
             *this.polled.as_mut() = true;
-            return Poll::Pending;
         }
-        if dst_demo_time::now().duration_since(*this.now).unwrap() >= *this.duration {
-            *this.completed.as_mut() = true;
-            Poll::Ready(())
-        } else {
-            cx.waker().wake_by_ref();
-            Poll::Pending
-        }
+
+        cx.waker().wake_by_ref();
+
+        Poll::Pending
     }
 }
 

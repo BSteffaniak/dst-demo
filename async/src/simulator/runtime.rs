@@ -22,7 +22,7 @@ thread_local! {
     static RUNTIME: RefCell<Mutex<Option<Runtime>>> = const { RefCell::new(Mutex::new(None)) };
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Runtime {
     queue: Queue,
     spawner: Spawner,

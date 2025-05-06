@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "async",
+    "async/cargo",
     "async/examples/cancel",
     "async/examples/simulated",
     "async/macros",
@@ -94,3 +95,4 @@ tokio-util = "0.7.14"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 turmoil = "0.6.6"
+walkdir = "2.5.0"

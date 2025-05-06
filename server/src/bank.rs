@@ -162,6 +162,7 @@ impl Bank for LocalBank {
     }
 
     async fn get_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
+        log::debug!("get_transaction: id={id}");
         Ok(self
             .transactions
             .read()
@@ -172,6 +173,7 @@ impl Bank for LocalBank {
     }
 
     async fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error> {
+        log::debug!("create_transaction: amount={amount}");
         let mut binding = self.current_id.write().await;
         let id = *binding;
         *binding += 1;
@@ -227,6 +229,7 @@ impl Bank for LocalBank {
     }
 
     async fn void_transaction(&self, id: TransactionId) -> Result<Option<Transaction>, Error> {
+        log::debug!("void_transaction: id={id}");
         let Some(existing) = self
             .transactions
             .read()
@@ -252,6 +255,7 @@ impl Bank for LocalBank {
     }
 
     async fn get_balance(&self) -> Result<BankAccountBalance, Error> {
+        log::debug!("get_balance");
         Ok(*self.balance.read().await)
     }
 }

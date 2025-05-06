@@ -172,12 +172,9 @@ impl Bank for LocalBank {
     }
 
     async fn create_transaction(&self, amount: Decimal) -> Result<Transaction, Error> {
-        let id = {
-            let mut binding = self.current_id.write().await;
-            let id = *binding;
-            *binding += 1;
-            id
-        };
+        let mut binding = self.current_id.write().await;
+        let id = *binding;
+        *binding += 1;
         let now = dst_demo_time::now();
         let seconds_since_epoch = now
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -206,14 +203,6 @@ impl Bank for LocalBank {
             }
             drop(binding);
         }
-        {
-            let current_id = *self.current_id.read().await;
-            assert!(
-                current_id > transaction.id,
-                "id went backwards from current_id={current_id} to {}",
-                transaction.id,
-            );
-        }
         assert!(
             transaction.created_at > 0,
             "created_at={} must be > 0",
@@ -232,6 +221,7 @@ impl Bank for LocalBank {
         *self.balance.write().await += transaction.amount;
 
         self.transactions.write().await.push(transaction.clone());
+        drop(binding);
 
         Ok(transaction)
     }

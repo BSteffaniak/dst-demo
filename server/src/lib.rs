@@ -67,7 +67,7 @@ impl std::fmt::Display for ServerAction {
 ///
 /// * If the `TcpListener` fails to bind
 /// * If the server TCP loop produces an error
-// #[inject_yields]
+#[inject_yields]
 pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let addr = addr.into();
     let listener = TcpListener::bind(&addr).await?;

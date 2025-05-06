@@ -2,8 +2,6 @@
 #![warn(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![allow(clippy::multiple_crate_versions)]
 
-pub mod bank;
-
 use std::{
     str::{self, FromStr as _},
     string::FromUtf8Error,
@@ -16,6 +14,8 @@ use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
 use tokio_util::sync::CancellationToken;
+
+pub mod bank;
 
 pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
     LazyLock::new(CancellationToken::new);

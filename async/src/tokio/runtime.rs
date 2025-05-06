@@ -7,6 +7,7 @@ use crate::{
     runtime::{Builder, GenericRuntime},
 };
 
+#[derive(Debug)]
 pub struct Runtime(tokio::runtime::Runtime);
 
 impl Default for Runtime {

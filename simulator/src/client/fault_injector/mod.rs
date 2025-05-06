@@ -10,7 +10,7 @@ pub fn start(sim: &mut impl Sim) {
 
     let mut plan = FaultInjectionInteractionPlan::new().with_gen_interactions(1000);
 
-    sim.client_until_cancelled("FaultInjector", async move {
+    sim.client("fault_injector", async move {
         loop {
             while let Some(interaction) = plan.step() {
                 perform_interaction(interaction).await?;
@@ -21,13 +21,15 @@ pub fn start(sim: &mut impl Sim) {
     });
 }
 
-async fn perform_interaction(interaction: &Interaction) -> Result<(), Box<dyn std::error::Error>> {
+async fn perform_interaction(
+    interaction: &Interaction,
+) -> Result<(), Box<dyn std::error::Error + Send>> {
     log::debug!("perform_interaction: interaction={interaction:?}");
 
     match interaction {
         Interaction::Sleep(duration) => {
             log::debug!("perform_interaction: sleeping for duration={duration:?}");
-            tokio::time::sleep(*duration).await;
+            dst_demo_async::time::sleep(*duration).await;
         }
         Interaction::Bounce(host) => {
             log::debug!("perform_interaction: queueing bouncing '{host}'");

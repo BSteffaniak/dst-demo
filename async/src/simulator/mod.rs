@@ -24,84 +24,135 @@ mod test {
     use super::runtime::build_runtime;
 
     #[cfg(feature = "time")]
-    #[test]
-    fn can_select_2_futures() {
-        let runtime = build_runtime(&Builder::new()).unwrap();
+    #[test_log::test]
+    fn can_await_time_future() {
+        dst_demo_time::simulator::with_real_time(|| {
+            let runtime = build_runtime(&Builder::new()).unwrap();
 
-        runtime.block_on(async move {
-            super::select! {
-                () = super::time::sleep(Duration::from_millis(100)) => {},
-                () = super::time::sleep(Duration::from_millis(200)) => {
-                    panic!("Should have selected other future");
-                },
-            }
+            runtime.block_on(super::time::sleep(Duration::from_millis(10)));
+
+            runtime.wait().unwrap();
         });
-
-        runtime.block_on(async move {
-            super::select! {
-                () = super::time::sleep(Duration::from_millis(200)) => {
-                    panic!("Should have selected other future");
-                },
-                () = super::time::sleep(Duration::from_millis(100)) => {},
-            }
-        });
-
-        runtime.wait().unwrap();
     }
 
     #[cfg(feature = "time")]
-    #[test]
+    #[test_log::test]
+    fn can_select_future() {
+        dst_demo_time::simulator::with_real_time(|| {
+            let runtime = build_runtime(&Builder::new()).unwrap();
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(10)) => {},
+                }
+            });
+
+            runtime.wait().unwrap();
+        });
+    }
+
+    #[cfg(feature = "time")]
+    #[test_log::test]
+    fn can_select_2_futures() {
+        dst_demo_time::simulator::with_real_time(|| {
+            let runtime = build_runtime(&Builder::new()).unwrap();
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(10)) => {},
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                }
+            });
+
+            runtime.wait().unwrap();
+        });
+    }
+
+    #[cfg(feature = "time")]
+    #[test_log::test]
+    fn can_select_2_futures_2_block_ons() {
+        dst_demo_time::simulator::with_real_time(|| {
+            let runtime = build_runtime(&Builder::new()).unwrap();
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(10)) => {},
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                }
+            });
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                    () = super::time::sleep(Duration::from_millis(10)) => {},
+                }
+            });
+
+            runtime.wait().unwrap();
+        });
+    }
+
+    #[cfg(feature = "time")]
+    #[test_log::test]
     fn can_select_3_futures() {
-        let runtime = build_runtime(&Builder::new()).unwrap();
+        dst_demo_time::simulator::with_real_time(|| {
+            let runtime = build_runtime(&Builder::new()).unwrap();
 
-        runtime.block_on(async move {
-            super::select! {
-                () = super::time::sleep(Duration::from_millis(10)) => {},
-                () = super::time::sleep(Duration::from_millis(100)) => {
-                    panic!("Should have selected other future");
-                },
-                () = super::time::sleep(Duration::from_millis(200)) => {
-                    panic!("Should have selected other future");
-                },
-            }
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(1)) => {},
+                    () = super::time::sleep(Duration::from_millis(10)) => {
+                        panic!("Should have selected other future");
+                    },
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                }
+            });
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(1)) => {},
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                    () = super::time::sleep(Duration::from_millis(10)) => {
+                        panic!("Should have selected other future");
+                    },
+                }
+            });
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                    () = super::time::sleep(Duration::from_millis(1)) => {},
+                    () = super::time::sleep(Duration::from_millis(10)) => {
+                        panic!("Should have selected other future");
+                    },
+                }
+            });
+
+            runtime.block_on(async move {
+                super::select! {
+                    () = super::time::sleep(Duration::from_millis(20)) => {
+                        panic!("Should have selected other future");
+                    },
+                    () = super::time::sleep(Duration::from_millis(10)) => {
+                        panic!("Should have selected other future");
+                    },
+                    () = super::time::sleep(Duration::from_millis(1)) => {},
+                }
+            });
+
+            runtime.wait().unwrap();
         });
-
-        runtime.block_on(async move {
-            super::select! {
-                () = super::time::sleep(Duration::from_millis(10)) => {},
-                () = super::time::sleep(Duration::from_millis(200)) => {
-                    panic!("Should have selected other future");
-                },
-                () = super::time::sleep(Duration::from_millis(100)) => {
-                    panic!("Should have selected other future");
-                },
-            }
-        });
-
-        runtime.block_on(async move {
-            super::select! {
-                () = super::time::sleep(Duration::from_millis(200)) => {
-                    panic!("Should have selected other future");
-                },
-                () = super::time::sleep(Duration::from_millis(10)) => {},
-                () = super::time::sleep(Duration::from_millis(100)) => {
-                    panic!("Should have selected other future");
-                },
-            }
-        });
-
-        runtime.block_on(async move {
-            super::select! {
-                () = super::time::sleep(Duration::from_millis(200)) => {
-                    panic!("Should have selected other future");
-                },
-                () = super::time::sleep(Duration::from_millis(100)) => {
-                    panic!("Should have selected other future");
-                },
-                () = super::time::sleep(Duration::from_millis(10)) => {},
-            }
-        });
-
-        runtime.wait().unwrap();
     }
 }

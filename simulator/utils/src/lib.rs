@@ -7,19 +7,12 @@ use std::{
     sync::{LazyLock, RwLock, atomic::AtomicU64},
 };
 
-use tokio_util::sync::CancellationToken;
+use dst_demo_async::{futures::FutureExt as _, util::CancellationToken};
 
-static THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
 static WORKER_THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
 
 thread_local! {
-    static THREAD_ID: RefCell<u64> = RefCell::new(THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
     static WORKER_THREAD_ID: RefCell<u64> = RefCell::new(WORKER_THREAD_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst));
-}
-
-#[must_use]
-pub fn thread_id() -> u64 {
-    THREAD_ID.with_borrow(|x| *x)
 }
 
 #[must_use]
@@ -94,9 +87,9 @@ where
     let global_token = GLOBAL_SIMULATOR_CANCELLATION_TOKEN.read().unwrap().clone();
     let local_token = SIMULATOR_CANCELLATION_TOKEN.with_borrow(|x| x.read().unwrap().clone());
 
-    tokio::select! {
-        resp = fut => Some(resp),
-        () = global_token.cancelled() => None,
-        () = local_token.cancelled() => None,
+    dst_demo_async::select! {
+        resp = fut.fuse() => Some(resp),
+        () = global_token.cancelled().fuse() => None,
+        () = local_token.cancelled().fuse() => None,
     }
 }

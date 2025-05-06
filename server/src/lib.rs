@@ -9,11 +9,15 @@ use std::{
 };
 
 use bank::{Bank, LocalBank, TransactionId};
-use dst_demo_async::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use dst_demo_async::{
+    inject_yields,
+    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+    task,
+    util::CancellationToken,
+};
 use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
-use tokio_util::sync::CancellationToken;
 
 pub mod bank;
 
@@ -63,6 +67,7 @@ impl std::fmt::Display for ServerAction {
 ///
 /// * If the `TcpListener` fails to bind
 /// * If the server TCP loop produces an error
+// #[inject_yields]
 pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     let addr = addr.into();
     let listener = TcpListener::bind(&addr).await?;
@@ -78,7 +83,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
                 let mut message = String::new();
                 let bank = bank.clone();
 
-                dst_demo_async::task::spawn(async move {
+                task::spawn(async move {
                     while let Ok(Some(action)) = read_message(&mut message, &mut read).await {
                         log::debug!("[{addr}] parsing action={action}");
                         let Ok(action) = ServerAction::from_str(&action).inspect_err(|_| {
@@ -134,6 +139,7 @@ pub async fn run(addr: impl Into<String>) -> Result<(), Error> {
     Ok(())
 }
 
+#[inject_yields]
 async fn read_message(
     message: &mut String,
     reader: &mut (impl AsyncRead + Unpin),
@@ -174,6 +180,7 @@ async fn read_message(
     })
 }
 
+#[inject_yields]
 async fn write_message(
     message: impl Into<String>,
     stream: &mut (impl AsyncWrite + Unpin),
@@ -185,6 +192,7 @@ async fn write_message(
     Ok(stream.write_all(&bytes).await?)
 }
 
+#[inject_yields]
 async fn list_transactions(
     bank: &impl Bank,
     writer: &mut (impl AsyncWrite + Unpin),
@@ -208,6 +216,7 @@ async fn list_transactions(
     Ok(())
 }
 
+#[inject_yields]
 async fn get_transaction(
     bank: &impl Bank,
     message: &mut String,
@@ -232,6 +241,7 @@ async fn get_transaction(
     Ok(())
 }
 
+#[inject_yields]
 async fn create_transaction(
     bank: &impl Bank,
     message: &mut String,
@@ -254,6 +264,7 @@ async fn create_transaction(
     Ok(())
 }
 
+#[inject_yields]
 async fn void_transaction(
     bank: &impl Bank,
     message: &mut String,
@@ -278,10 +289,12 @@ async fn void_transaction(
     Ok(())
 }
 
+#[inject_yields]
 async fn health(stream: &mut (impl AsyncWrite + Unpin)) -> Result<(), Error> {
     write_message("healthy", stream).await
 }
 
+#[inject_yields]
 async fn get_balance(
     bank: &impl Bank,
     stream: &mut (impl AsyncWrite + Unpin),

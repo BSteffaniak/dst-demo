@@ -147,29 +147,6 @@ impl SimConfig {
     }
 }
 
-#[allow(clippy::fallible_impl_from)]
-impl From<SimConfig> for turmoil::Builder {
-    fn from(value: SimConfig) -> Self {
-        let mut builder = Self::new();
-
-        builder
-            .fail_rate(value.fail_rate)
-            .repair_rate(value.repair_rate)
-            .tcp_capacity(value.tcp_capacity.try_into().unwrap())
-            .udp_capacity(value.udp_capacity.try_into().unwrap())
-            .min_message_latency(value.min_message_latency)
-            .max_message_latency(value.max_message_latency)
-            .simulation_duration(Duration::MAX)
-            .tick_duration(value.tick_duration);
-
-        if value.enable_random_order {
-            builder.enable_random_order();
-        }
-
-        builder
-    }
-}
-
 #[derive(Debug)]
 pub struct SimProperties {
     pub config: SimConfig,
@@ -346,7 +323,6 @@ pub fn run_info(props: &SimProperties) -> String {
         enable_random_order = config.enable_random_order,
         min_message_latency = config.min_message_latency.as_millis(),
         max_message_latency = config.max_message_latency.as_millis(),
-        duration = duration,
     )
 }
 

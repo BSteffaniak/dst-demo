@@ -11,8 +11,10 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
-tokio      = { workspace = true, features = ["macros"] }
-tokio-util = { workspace = true }
+dst_demo_async = { version = "0.1.0", path = "../../async", default-features = false, features = [
+    "macros",
+    "util",
+] }
 
 [features]
 default = []

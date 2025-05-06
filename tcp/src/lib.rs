@@ -18,6 +18,13 @@ pub mod simulator;
 pub enum Error {
     #[error(transparent)]
     IO(#[from] ::std::io::Error),
+    #[error(transparent)]
+    AddrParse(#[from] ::std::net::AddrParseError),
+    #[error(transparent)]
+    ParseInt(#[from] std::num::ParseIntError),
+    #[cfg(feature = "simulator")]
+    #[error("Send error")]
+    Send,
 }
 
 #[async_trait]

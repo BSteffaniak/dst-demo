@@ -15,6 +15,8 @@ pub fn log_message(msg: impl Into<String>) {
 pub fn init_pretty_env_logger() -> std::io::Result<()> {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use crate::{client::current_client, host::current_host};
+
     const NO_LOG: bool = std::option_env!("NO_LOG").is_some();
 
     if NO_LOG {
@@ -60,11 +62,18 @@ pub fn init_pretty_env_logger() -> std::io::Result<()> {
                 log::Level::Trace => Color::Magenta,
             });
 
-            let thread_id = dst_demo_simulator_utils::thread_id();
+            let thread_id = dst_demo_async::thread_id();
             let ts = buf.timestamp_millis();
+            let level_prefix_len = "[]".len() + level.to_string().len();
             let thread_prefix_len = "[Thread ]".len() + thread_id.to_string().len();
             let target_prefix_len = "[]".len() + target.len();
-            let level_prefix_len = "[]".len() + level.to_string().len();
+
+            let mut max_level_prefix_len = MAX_LEVEL_PREFIX_LEN.load(Ordering::SeqCst);
+            if level_prefix_len > max_level_prefix_len {
+                max_level_prefix_len = level_prefix_len;
+                MAX_LEVEL_PREFIX_LEN.store(level_prefix_len, Ordering::SeqCst);
+            }
+            let level_padding = max_level_prefix_len - level_prefix_len;
 
             let mut max_thread_prefix_len = MAX_THREAD_PREFIX_LEN.load(Ordering::SeqCst);
             if thread_prefix_len > max_thread_prefix_len {
@@ -80,26 +89,31 @@ pub fn init_pretty_env_logger() -> std::io::Result<()> {
             }
             let target_padding = max_target_prefix_len - target_prefix_len;
 
-            let mut max_level_prefix_len = MAX_LEVEL_PREFIX_LEN.load(Ordering::SeqCst);
-            if level_prefix_len > max_level_prefix_len {
-                max_level_prefix_len = level_prefix_len;
-                MAX_LEVEL_PREFIX_LEN.store(level_prefix_len, Ordering::SeqCst);
-            }
-            let level_padding = max_level_prefix_len - level_prefix_len;
-
-            writeln!(
+            write!(
                 buf,
                 "\
                 [{ts}] \
                 [Thread {thread_id}] {empty:<thread_padding$}\
                 [{target}] {empty:<target_padding$}\
                 [{level}] {empty:<level_padding$}\
-                {args}\
                 ",
                 empty = "",
                 level = level_style.value(level),
-                args = record.args(),
-            )
+            )?;
+
+            if let Some(host) = current_host() {
+                let mut style = buf.style();
+                let host_style = style.set_color(Color::Cyan);
+                write!(buf, "[{host}] ", host = host_style.value(host))?;
+            }
+
+            if let Some(host) = current_client() {
+                let mut style = buf.style();
+                let host_style = style.set_color(Color::Cyan);
+                write!(buf, "[{host}] ", host = host_style.value(host))?;
+            }
+
+            writeln!(buf, "{args}", args = record.args())
         })
         .init();
 

@@ -13,12 +13,14 @@ use std::{
     time::{Duration, SystemTime},
 };
 
+use client::{Client, ClientResult};
 use color_backtrace::{BacktracePrinter, termcolor::Buffer};
 use config::run_info;
+use dst_demo_async::thread_id;
+use dst_demo_random::{rand::rand::seq::SliceRandom as _, rng};
 use dst_demo_simulator_utils::{
     cancel_global_simulation, cancel_simulation, is_global_simulator_cancelled,
-    is_simulator_cancelled, reset_simulator_cancellation_token, run_until_simulation_cancelled,
-    thread_id, worker_thread_id,
+    is_simulator_cancelled, reset_simulator_cancellation_token, worker_thread_id,
 };
 use dst_demo_time::simulator::{current_step, next_step, reset_step};
 use formatting::TimeFormat as _;
@@ -36,9 +38,12 @@ pub use dst_demo_random as random;
 pub use dst_demo_tcp as tcp;
 #[cfg(feature = "time")]
 pub use dst_demo_time as time;
+use host::{Host, HostResult};
 
+mod client;
 mod config;
 mod formatting;
+mod host;
 mod logging;
 pub mod plan;
 #[cfg(feature = "tui")]
@@ -60,6 +65,14 @@ static END_SIM: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(false));
 
 #[cfg(feature = "tui")]
 static DISPLAY_STATE: LazyLock<tui::DisplayState> = LazyLock::new(tui::DisplayState::new);
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error(transparent)]
+    IO(#[from] std::io::Error),
+    #[error(transparent)]
+    Step(Box<dyn std::error::Error + Send>),
+}
 
 fn ctrl_c() {
     log::debug!("ctrl_c called");
@@ -342,6 +355,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         }
 
         dst_demo_random::simulator::reset_rng();
+        dst_demo_tcp::simulator::reset();
         #[cfg(feature = "fs")]
         dst_demo_fs::simulator::reset_fs();
         #[cfg(feature = "time")]
@@ -357,13 +371,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         let duration = config.duration;
         let duration_steps = duration.as_millis();
 
-        let turmoil_builder: turmoil::Builder = config.into();
-        #[cfg(feature = "random")]
-        let sim = turmoil_builder.build_with_rng(Box::new(dst_demo_random::rng()));
-        #[cfg(not(feature = "random"))]
-        let sim = turmoil_builder.build();
-
-        let mut managed_sim = ManagedSim::new(sim);
+        let mut managed_sim = ManagedSim::new(config);
 
         let props = SimProperties {
             run_number,
@@ -389,7 +397,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
         self.bootstrap.on_start(&mut managed_sim);
 
         let resp = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            let print_step = |sim: &turmoil::Sim<'_>, step| {
+            let print_step = |sim: &ManagedSim, step| {
                 if duration < Duration::MAX {
                     #[allow(clippy::cast_precision_loss)]
                     let progress = (step as f64 / duration_steps as f64).clamp(0.0, 1.0);
@@ -416,19 +424,21 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                 }
             };
 
+            managed_sim.start();
+
             loop {
                 if !is_simulator_cancelled() {
                     let step = next_step();
 
                     if duration < Duration::MAX && u128::from(step) >= duration_steps {
                         log::debug!("sim ran for {duration_steps} steps. stopping");
-                        print_step(&managed_sim.sim, step);
+                        print_step(&managed_sim, step);
                         cancel_simulation();
                         break;
                     }
 
                     if step % 1000 == 0 {
-                        print_step(&managed_sim.sim, step);
+                        print_step(&managed_sim, step);
                     }
 
                     self.bootstrap.on_step(&mut managed_sim);
@@ -438,49 +448,26 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
                         .update_sim_step(thread_id.unwrap_or(1), step);
                 }
 
-                match managed_sim.sim.step() {
-                    Ok(completed) => {
-                        if completed {
-                            log::debug!("sim completed");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        let message = e.to_string();
-                        if message.starts_with("Ran for duration: ")
-                            && message.ends_with(" without completing")
-                        {
-                            break;
-                        }
-                        #[cfg(feature = "tui")]
-                        self.display_state.update_sim_state(
-                            thread_id.unwrap_or(1),
-                            run_number,
-                            config,
-                            #[allow(clippy::cast_precision_loss)]
-                            if duration < Duration::MAX {
-                                (current_step() as f64 / duration_steps as f64).clamp(0.0, 1.0)
-                            } else {
-                                0.0
-                            },
-                            true,
-                        );
-                        return Err(e);
-                    }
+                if managed_sim.step()? {
+                    log::debug!("sim completed");
+                    break;
                 }
             }
 
-            Ok(())
+            Ok::<_, Error>(())
         }));
 
-        #[cfg(feature = "tui")]
-        self.display_state.run_completed();
         self.bootstrap.on_end(&mut managed_sim);
 
         let end = SystemTime::now();
         let real_time_millis = end.duration_since(start).unwrap().as_millis();
-        let sim_time_millis = managed_sim.sim.elapsed().as_millis();
+        let sim_time_millis = managed_sim.elapsed().as_millis();
         let steps = current_step() - 1;
+
+        #[cfg(feature = "tui")]
+        self.display_state.run_completed();
+
+        log::debug!("after simulation run");
 
         let run = SimRunProperties {
             steps,
@@ -496,7 +483,11 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             SimResult::Fail {
                 props,
                 run,
-                error: Some(format!("{e:?}")),
+                error: if panic.is_none() {
+                    Some(format!("{e:?}"))
+                } else {
+                    None
+                },
                 panic,
             }
         } else if let Ok(Err(e)) = resp {
@@ -517,6 +508,13 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             SimResult::Success { props, run }
         };
 
+        if !result.is_success() {
+            end_sim();
+        }
+
+        #[cfg(feature = "tui")]
+        self.display_state
+            .update_sim_step(thread_id.unwrap_or(1), steps);
         #[cfg(feature = "tui")]
         self.display_state.update_sim_state(
             thread_id.unwrap_or(1),
@@ -524,7 +522,7 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
             config,
             #[allow(clippy::cast_precision_loss)]
             if duration < Duration::MAX {
-                current_step() as f64 / duration_steps as f64
+                (current_step() as f64 / duration_steps as f64).clamp(0.0, 1.0)
             } else {
                 0.0
             },
@@ -561,28 +559,147 @@ pub trait Sim {
     fn bounce(&mut self, host: impl Into<String>);
 
     fn host<
-        F: Fn() -> Fut + 'static,
-        Fut: Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = HostResult> + Send + 'static,
     >(
         &mut self,
-        name: &str,
+        name: impl Into<String>,
         action: F,
     );
 
-    fn client_until_cancelled(
+    fn client(
         &mut self,
-        name: &str,
-        action: impl Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
+        name: impl Into<String>,
+        action: impl Future<Output = ClientResult> + Send + 'static,
     );
 }
 
-struct ManagedSim<'a> {
-    sim: turmoil::Sim<'a>,
+struct ManagedSim {
+    config: SimConfig,
+    hosts: Vec<Host>,
+    clients: Vec<Client>,
+    start: Option<SystemTime>,
 }
 
-impl<'a> ManagedSim<'a> {
-    const fn new(sim: turmoil::Sim<'a>) -> Self {
-        Self { sim }
+impl ManagedSim {
+    const fn new(config: SimConfig) -> Self {
+        Self {
+            config,
+            hosts: vec![],
+            clients: vec![],
+            start: None,
+        }
+    }
+
+    pub fn elapsed(&self) -> Duration {
+        let Some(start) = self.start else {
+            return Duration::ZERO;
+        };
+        dst_demo_time::now().duration_since(start).unwrap()
+    }
+
+    pub fn start(&mut self) {
+        self.start = Some(dst_demo_time::now());
+
+        for host in self.hosts.iter_mut().filter(|x| !x.has_started()) {
+            host.start();
+        }
+        for client in &mut self.clients {
+            client.start();
+        }
+    }
+
+    pub fn step(&mut self) -> Result<bool, Error> {
+        log::trace!("step {}", current_step());
+        // if current_step() == 300 {
+        //     panic!();
+        // }
+
+        let mut actors = self
+            .hosts
+            .iter()
+            .map(|x| Box::new(x) as Box<dyn Actor>)
+            .chain(self.clients.iter().map(|x| Box::new(x) as Box<dyn Actor>))
+            .collect::<Vec<_>>();
+
+        if self.config.enable_random_order {
+            actors.shuffle(&mut rng());
+        }
+
+        for actor in actors {
+            actor.tick();
+        }
+
+        let mut remaining_hosts = vec![];
+
+        for mut host in self.hosts.drain(..) {
+            if host.is_running() {
+                remaining_hosts.push(host);
+                continue;
+            }
+            if let Some(handle) = host.handle {
+                host.runtime
+                    .block_on(handle)
+                    .flatten()
+                    .transpose()
+                    .map_err(Error::Step)?;
+            }
+        }
+
+        self.hosts = remaining_hosts;
+
+        let mut remaining_clients = vec![];
+
+        for mut client in self.clients.drain(..) {
+            if client.is_running() {
+                remaining_clients.push(client);
+                continue;
+            }
+            if let Some(handle) = client.handle {
+                client
+                    .runtime
+                    .block_on(handle)
+                    .flatten()
+                    .transpose()
+                    .map_err(Error::Step)?;
+            }
+        }
+
+        self.clients = remaining_clients;
+
+        if is_simulator_cancelled() {
+            log::debug!("cancelled!");
+            let client_count = self.clients.len();
+            for (i, client) in self.clients.drain(..).enumerate() {
+                log::debug!("cancelling client {}/{client_count}!", i + 1);
+                if let Some(handle) = client.handle {
+                    client
+                        .runtime
+                        .block_on(handle)
+                        .flatten()
+                        .transpose()
+                        .map_err(Error::Step)?;
+                }
+            }
+
+            let host_count = self.hosts.len();
+            for (i, host) in self.hosts.drain(..).enumerate() {
+                log::debug!("cancelling host {}/{host_count}!", i + 1);
+                if let Some(handle) = host.handle {
+                    host.runtime
+                        .block_on(handle)
+                        .flatten()
+                        .transpose()
+                        .map_err(Error::Step)?;
+                }
+            }
+        }
+
+        if current_step() % 1000 == 0 || END_SIM.load(std::sync::atomic::Ordering::SeqCst) {
+            log::debug!("hosts={} clients={}", self.hosts.len(), self.clients.len());
+        }
+
+        Ok(self.hosts.is_empty() && self.clients.is_empty())
     }
 
     #[allow(clippy::unused_self)]
@@ -591,37 +708,36 @@ impl<'a> ManagedSim<'a> {
     }
 }
 
-impl Sim for ManagedSim<'_> {
+impl Sim for ManagedSim {
     fn bounce(&mut self, host: impl Into<String>) {
         let host = host.into();
-        let host = format!("{host}_{}", thread_id());
-        turmoil::Sim::bounce(&mut self.sim, host);
+        log::debug!("bouncing host={host}");
     }
 
     fn host<
-        F: Fn() -> Fut + 'static,
-        Fut: Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = HostResult> + Send + 'static,
     >(
         &mut self,
-        name: &str,
+        name: impl Into<String>,
         action: F,
     ) {
-        let name = format!("{name}_{}", thread_id());
+        let name = name.into();
         log::debug!("starting host with name={name}");
-        turmoil::Sim::host(&mut self.sim, name, action);
+        self.hosts.push(Host::new(name, action));
     }
 
-    fn client_until_cancelled(
+    fn client(
         &mut self,
-        name: &str,
-        action: impl Future<Output = Result<(), Box<dyn std::error::Error>>> + 'static,
+        name: impl Into<String>,
+        action: impl Future<Output = ClientResult> + Send + 'static,
     ) {
-        let name = format!("{name}_{}", thread_id());
+        let name = name.into();
         log::debug!("starting client with name={name}");
-        self.sim.client(name, async move {
-            run_until_simulation_cancelled(action).await.transpose()?;
-
-            Ok(())
-        });
+        self.clients.push(Client::new(name, action));
     }
+}
+
+pub(crate) trait Actor {
+    fn tick(&self);
 }

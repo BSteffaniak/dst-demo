@@ -8,7 +8,10 @@ use std::{
 };
 
 use async_trait::async_trait;
-use dst_demo_async::sync::{Mutex, RwLock, RwLockReadGuard};
+use dst_demo_async::{
+    inject_yields,
+    sync::{Mutex, RwLock, RwLockReadGuard},
+};
 use dst_demo_fs::sync::{File, OpenOptions};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -155,6 +158,7 @@ impl LocalBank {
     }
 }
 
+#[inject_yields]
 #[async_trait]
 impl Bank for LocalBank {
     async fn list_transactions(&self) -> Result<RwLockReadGuard<Vec<Transaction>>, Error> {

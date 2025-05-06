@@ -13,7 +13,13 @@ pub fn start(sim: &mut impl Sim) {
             log::debug!("starting 'dst_demo' server");
             run_until_simulation_cancelled(dst_demo_server::run(&addr))
                 .await
-                .transpose()?;
+                .transpose()
+                .map_err(|x| {
+                    Box::new(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        x.to_string(),
+                    )) as Box<dyn std::error::Error + Send>
+                })?;
             log::debug!("finished 'dst_demo' server");
 
             Ok(())

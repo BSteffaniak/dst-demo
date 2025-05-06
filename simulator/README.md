@@ -1,6 +1,6 @@
 # 🧪 Simulator Overview
 
-This simulator orchestrates deterministic simulation testing (DST) using the `tokio-turmoil` framework to uncover concurrency and failure edge cases in the TCP-based bank server application.
+This simulator orchestrates deterministic simulation testing (DST) to uncover concurrency and failure edge cases in the TCP-based bank server application.
 
 ## 🧩 Architecture
 
@@ -8,7 +8,7 @@ The simulation involves two main components:
 
 ### 🖥️ Host Server (`host`)
 
-Simulates the real TCP bank server within the turmoil simulation. It processes client requests to create, void, get, and list transactions, using simulated time and deterministic execution to model realistic server behavior under network conditions and failures.
+Simulates the real TCP bank server within the simulation. It processes client requests to create, void, get, and list transactions, using simulated time and deterministic execution to model realistic server behavior under network conditions and failures.
 
 ### 🧑‍🤝‍🧑 Clients (`client`)
 

@@ -41,6 +41,8 @@ impl GenericRuntime for Runtime {
         self.0.block_on(f)
     }
 
+    /// FIXME: This doesn't await all tasks. We probably need to add all
+    /// the task handles to a collection manually to handle this properly.
     fn wait(self) -> Result<(), Error> {
         self.0.shutdown_timeout(Duration::from_secs(10_000_000));
         Ok(())

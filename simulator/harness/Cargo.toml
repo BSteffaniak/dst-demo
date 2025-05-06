@@ -20,7 +20,8 @@ dst_demo_time = { version = "0.1.0", path = "../../time", default-features = fal
 ] }
 
 dst_demo_async = { version = "0.1.0", path = "../../async", optional = true, default-features = false, features = [
-    "tokio",
+    "simulator",
+    "time",
 ] }
 dst_demo_fs = { version = "0.1.0", path = "../../fs", optional = true, default-features = false, features = [
     "simulator",
@@ -33,8 +34,9 @@ btparse         = { workspace = true }
 color-backtrace = { workspace = true }
 ctrlc           = { workspace = true }
 log             = { workspace = true }
+scoped-tls      = { workspace = true }
 shell-words     = { workspace = true }
-turmoil         = { workspace = true }
+thiserror       = { workspace = true }
 
 # TUI
 oneshot = { workspace = true, optional = true }
@@ -53,7 +55,6 @@ fs     = ["dep:dst_demo_fs"]
 random = []
 tcp    = ["dep:dst_demo_tcp"]
 time   = []
-
-tui = ["dep:oneshot", "dep:ratatui"]
+tui    = ["dep:oneshot", "dep:ratatui"]
 
 pretty_env_logger = ["dep:pretty_env_logger"]

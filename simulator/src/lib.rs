@@ -9,8 +9,8 @@ use std::{
     sync::{Arc, LazyLock, Mutex, RwLock},
 };
 
+use dst_demo_async::io::AsyncReadExt;
 use dst_demo_simulator_harness::{Sim, random::rng};
-use tokio::io::AsyncReadExt;
 
 pub mod client;
 pub mod host;

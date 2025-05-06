@@ -21,6 +21,7 @@ dst_demo_time = { version = "0.1.0", path = "../time", optional = true, default-
 
 log              = { workspace = true }
 pin-project-lite = { workspace = true }
+scoped-tls       = { workspace = true }
 thiserror        = { workspace = true }
 
 # Simulator
@@ -32,6 +33,7 @@ tokio-util = { workspace = true, optional = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
+test-log          = { workspace = true }
 
 [features]
 default = [

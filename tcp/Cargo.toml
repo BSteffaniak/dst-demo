@@ -11,17 +11,33 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
+dst_demo_async = { version = "0.1.0", path = "../async", default-features = false, features = [
+    "macros",
+    "sync",
+    "time",
+    "util",
+] }
+
 async-trait = { workspace = true }
 log         = { workspace = true }
 paste       = { workspace = true }
 thiserror   = { workspace = true }
 tokio       = { workspace = true, features = ["net"] }
-turmoil     = { workspace = true, optional = true }
+
+# Simulator
+bytes      = { workspace = true, optional = true }
+flume      = { workspace = true, optional = true }
+scoped-tls = { workspace = true, optional = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serial_test       = { workspace = true }
+test-log          = { workspace = true }
 
 [features]
 default = ["simulator", "tokio"]
 
 fail-on-warnings = []
 
-simulator = ["dep:turmoil"]
+simulator = ["dep:bytes", "dep:flume", "dep:scoped-tls"]
 tokio     = []

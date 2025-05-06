@@ -15,7 +15,7 @@ This repository demonstrates **Deterministic Simulation Testing (DST)**. It's a 
   - List all transactions
 
 - **Deterministic Simulation Framework**  
-  Powered by [`tokio-turmoil`](https://github.com/tokio-rs/turmoil), the app runs in a fully controlled, simulated network and time environment.
+  The app runs in a fully controlled, simulated network and time environment.
 
 - **Interaction Plans**  
   Test scenarios are encoded as **InteractionPlans**, describing sequences of client actions over simulated time, exposing edge cases and time-sensitive bugs.
@@ -27,7 +27,7 @@ This repository demonstrates **Deterministic Simulation Testing (DST)**. It's a 
 
 ## 🧪 Simulator Overview
 
-This simulator orchestrates deterministic simulation testing (DST) using the `tokio-turmoil` framework to uncover concurrency and failure edge cases in the TCP-based bank server application.
+This simulator orchestrates deterministic simulation testing (DST) to uncover concurrency and failure edge cases in the TCP-based bank server application.
 
 ### 🧩 Architecture
 
@@ -35,7 +35,7 @@ The simulation involves two main components:
 
 #### 🖥️ Host Server (`host`)
 
-Simulates the real TCP bank server within the turmoil simulation. It processes client requests to create, void, get, and list transactions, using simulated time and deterministic execution to model realistic server behavior under network conditions and failures.
+Simulates the real TCP bank server within the simulation. It processes client requests to create, void, get, and list transactions, using simulated time and deterministic execution to model realistic server behavior under network conditions and failures.
 
 #### 🧑‍🤝‍🧑 Clients (`client`)
 
@@ -110,7 +110,7 @@ Once connected, you can issue the following commands:
 
 ### 🧪 Running the Simulator
 
-To run the deterministic simulation using turmoil:
+To run the deterministic simulation:
 
 ```bash
 cargo run --release -p dst_demo_server_simulator
@@ -153,7 +153,7 @@ Real-world distributed systems can be hard to test due to:
 - Time-sensitive logic
 - Race conditions
 
-By using turmoil’s simulation of network and time, this project:
+By using simulated network and time, this project:
 
 - **Eliminates flakiness**: every test run is deterministic.
 - **Enables time travel**: simulate delays, timeouts, and epoch shifts.

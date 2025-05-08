@@ -5,7 +5,7 @@
 use std::process::ExitCode;
 
 use dst_demo_server_simulator::{banker_count, client, handle_actions, host, reset_banker_count};
-use dst_demo_simulator_harness::{Sim, SimBootstrap, SimConfig, run_simulation};
+use simvar::{Sim, SimBootstrap, SimConfig, run_simulation};
 
 pub struct Simulator;
 

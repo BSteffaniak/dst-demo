@@ -514,37 +514,11 @@ name = "dst_demo_server_simulator"
 version = "0.1.0"
 dependencies = [
  "dst_demo_server",
- "dst_demo_simulator_harness",
  "log",
  "rust_decimal",
+ "simvar",
  "strum 0.27.1",
- "switchy",
  "thiserror 2.0.12",
-]
-
-[[package]]
-name = "dst_demo_simulator_harness"
-version = "0.1.0"
-dependencies = [
- "btparse",
- "color-backtrace",
- "ctrlc",
- "dst_demo_simulator_utils",
- "log",
- "oneshot",
- "pretty_env_logger",
- "ratatui",
- "scoped-tls",
- "shell-words",
- "switchy",
- "thiserror 2.0.12",
-]
-
-[[package]]
-name = "dst_demo_simulator_utils"
-version = "0.1.0"
-dependencies = [
- "switchy",
 ]
 
 [[package]]
@@ -2334,6 +2308,44 @@ name = "simdutf8"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
+
+[[package]]
+name = "simvar"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a34a2978d48c5346609a3876c32fd4cd7186056721f67a95847a29c93a28fb0"
+dependencies = [
+ "simvar_harness",
+]
+
+[[package]]
+name = "simvar_harness"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66162a8017b2fbeca49517b90224253dc63b5772718c7eba5f97c83c518f32ce"
+dependencies = [
+ "btparse",
+ "color-backtrace",
+ "ctrlc",
+ "log",
+ "oneshot",
+ "pretty_env_logger",
+ "ratatui",
+ "scoped-tls",
+ "shell-words",
+ "simvar_utils",
+ "switchy",
+ "thiserror 2.0.12",
+]
+
+[[package]]
+name = "simvar_utils"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2dfe91df1aec2fc878ebe526120cd828105e8aaf304be76c70fac20aa0f522c5"
+dependencies = [
+ "switchy",
+]
 
 [[package]]
 name = "slab"

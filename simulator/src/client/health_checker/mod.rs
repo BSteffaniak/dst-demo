@@ -1,9 +1,13 @@
-use dst_demo_simulator_harness::{Sim, plan::InteractionPlan as _};
 use plan::{HealthCheckInteractionPlan, Interaction};
-use switchy::{
-    tcp::TcpStream,
-    time::simulator::step_multiplier,
-    unsync::{futures::FutureExt, io::AsyncWriteExt},
+use simvar::{
+    Sim,
+    plan::InteractionPlan as _,
+    switchy::{
+        self,
+        tcp::TcpStream,
+        time::simulator::step_multiplier,
+        unsync::{futures::FutureExt, io::AsyncWriteExt},
+    },
 };
 
 pub mod plan;

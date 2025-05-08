@@ -1,4 +1,4 @@
-use dst_demo_simulator_harness::{Sim, utils::run_until_simulation_cancelled};
+use simvar::{Sim, utils::run_until_simulation_cancelled};
 
 pub const HOST: &str = "dst_demo_server";
 pub const PORT: u16 = 1234;

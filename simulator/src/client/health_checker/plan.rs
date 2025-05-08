@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use dst_demo_simulator_harness::plan::InteractionPlan;
+use simvar::plan::InteractionPlan;
 use strum::{EnumDiscriminants, EnumIter};
 
 use crate::host::server::{HOST, PORT};

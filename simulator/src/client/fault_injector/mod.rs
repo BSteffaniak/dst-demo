@@ -1,5 +1,5 @@
-use dst_demo_simulator_harness::{Sim, plan::InteractionPlan as _};
 use plan::{FaultInjectionInteractionPlan, Interaction};
+use simvar::{Sim, plan::InteractionPlan as _, switchy};
 
 pub mod plan;
 

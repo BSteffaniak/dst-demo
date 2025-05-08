@@ -4,13 +4,17 @@ use dst_demo_server::{
     ServerAction,
     bank::{Transaction, TransactionId},
 };
-use dst_demo_simulator_harness::{Sim, plan::InteractionPlan as _};
 use plan::{BankerInteractionPlan, Interaction};
 use rust_decimal::Decimal;
-use switchy::{
-    tcp::TcpStream,
-    time::simulator::step_multiplier,
-    unsync::{futures::FutureExt as _, io::AsyncWriteExt as _},
+use simvar::{
+    Sim,
+    plan::InteractionPlan as _,
+    switchy::{
+        self,
+        tcp::TcpStream,
+        time::simulator::step_multiplier,
+        unsync::{futures::FutureExt as _, io::AsyncWriteExt as _},
+    },
 };
 
 mod plan;

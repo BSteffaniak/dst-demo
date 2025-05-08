@@ -9,8 +9,10 @@ use std::{
     sync::{Arc, LazyLock, Mutex, RwLock},
 };
 
-use dst_demo_simulator_harness::Sim;
-use switchy::{random::rng, unsync::io::AsyncReadExt};
+use simvar::{
+    Sim,
+    switchy::{random::rng, unsync::io::AsyncReadExt},
+};
 
 pub mod client;
 pub mod host;

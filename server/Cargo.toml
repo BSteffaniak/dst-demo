@@ -43,5 +43,3 @@ thiserror           = { workspace = true }
 default = []
 
 fail-on-warnings = []
-
-simulator = []

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use switchy::{
+use simvar::switchy::{
     tcp::TcpStream,
     unsync::io::{AsyncReadExt as _, AsyncWriteExt as _},
 };

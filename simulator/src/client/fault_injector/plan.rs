@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use dst_demo_simulator_harness::{
-    plan::InteractionPlan,
+use dst_demo_simulator_harness::plan::InteractionPlan;
+use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
+use switchy::{
     random::{rand::rand::seq::IteratorRandom as _, rng},
     time::simulator::step_multiplier,
 };
-use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
 
 use crate::host::server::HOST;
 

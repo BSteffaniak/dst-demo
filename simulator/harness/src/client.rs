@@ -1,8 +1,8 @@
 use std::pin::Pin;
 
-use dst_demo_async::{futures::FutureExt as _, runtime, task::JoinHandle};
 use dst_demo_simulator_utils::run_until_simulation_cancelled;
 use scoped_tls::scoped_thread_local;
+use switchy::unsync::{futures::FutureExt as _, runtime, task::JoinHandle};
 
 use crate::Actor;
 

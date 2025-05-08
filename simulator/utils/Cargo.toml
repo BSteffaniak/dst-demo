@@ -11,9 +11,10 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
-dst_demo_async = { version = "0.1.0", path = "../../async", default-features = false, features = [
-    "macros",
-    "util",
+switchy = { workspace = true, features = [
+    "async",
+    "async-macros",
+    "async-util",
 ] }
 
 [features]
@@ -21,4 +22,4 @@ default = []
 
 fail-on-warnings = []
 
-simulator=[]
+simulator = []

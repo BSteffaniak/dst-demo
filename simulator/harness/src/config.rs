@@ -1,6 +1,6 @@
 use std::{sync::LazyLock, time::Duration};
 
-use dst_demo_random::{rng, simulator::seed};
+use switchy::random::{rng, simulator::seed};
 
 use crate::{RUNS, formatting::TimeFormat as _};
 
@@ -89,13 +89,13 @@ impl SimConfig {
 
         #[cfg(feature = "time")]
         {
-            config.epoch_offset = dst_demo_time::simulator::epoch_offset();
-            config.step_multiplier = dst_demo_time::simulator::step_multiplier();
+            config.epoch_offset = switchy::time::simulator::epoch_offset();
+            config.step_multiplier = switchy::time::simulator::step_multiplier();
         }
 
         #[cfg(feature = "time")]
         config.tick_duration(Duration::from_millis(
-            dst_demo_time::simulator::step_multiplier(),
+            switchy::time::simulator::step_multiplier(),
         ));
 
         config
@@ -208,7 +208,7 @@ impl std::fmt::Display for SimResult {
         let config = &props.config;
         let run = self.run();
 
-        let run_from_seed = if *RUNS == 1 && dst_demo_random::simulator::contains_fixed_seed() {
+        let run_from_seed = if *RUNS == 1 && switchy::random::simulator::contains_fixed_seed() {
             String::new()
         } else {
             let cmd = get_run_command(
@@ -222,10 +222,10 @@ impl std::fmt::Display for SimResult {
             );
             format!("\n\nTo run again with this seed: `{cmd}`")
         };
-        let run_from_start = if !dst_demo_random::simulator::contains_fixed_seed() && *RUNS > 1 {
+        let run_from_start = if !switchy::random::simulator::contains_fixed_seed() && *RUNS > 1 {
             let cmd = get_run_command(
                 &["SIMULATOR_SEED"],
-                dst_demo_random::simulator::initial_seed(),
+                switchy::random::simulator::initial_seed(),
             );
             format!("\nTo run entire simulation again from the first run: `{cmd}`")
         } else {

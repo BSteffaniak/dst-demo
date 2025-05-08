@@ -11,23 +11,21 @@ repository  = "https://github.com/BSteffaniak/dst-demo"
 version     = "0.1.0"
 
 [dependencies]
-dst_demo_async = { version = "0.1.0", path = "../async", default-features = false, features = [
-    "io",
-    "macros",
-    "net",
-    "rt-multi-thread",
-    "sync",
-    "tokio",
-    "util",
-] }
-dst_demo_fs = { version = "0.1.0", path = "../fs", default-features = false, features = [
-    "std",
-] }
-dst_demo_tcp = { version = "0.1.0", path = "../tcp", default-features = false, features = [
-    "tokio",
-] }
-dst_demo_time = { version = "0.1.0", path = "../time", default-features = false, features = [
-    "std",
+switchy = { workspace = true, features = [
+    "async",
+    "async-io",
+    "async-macros",
+    "async-net",
+    "async-rt-multi-thread",
+    "async-sync",
+    "async-tokio",
+    "async-util",
+    "fs",
+    "fs-std",
+    "tcp",
+    "tcp-tokio",
+    "time",
+    "time-std",
 ] }
 
 async-trait         = { workspace = true }

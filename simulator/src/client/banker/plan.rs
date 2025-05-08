@@ -1,15 +1,13 @@
 use std::time::Duration;
 
 use dst_demo_server::bank::{Transaction, TransactionId};
-use dst_demo_simulator_harness::{
-    plan::InteractionPlan,
-    random::{
-        rand::rand::{Rng, seq::IteratorRandom as _},
-        rng,
-    },
-};
+use dst_demo_simulator_harness::plan::InteractionPlan;
 use rust_decimal::Decimal;
 use strum::{EnumDiscriminants, EnumIter, IntoEnumIterator as _};
+use switchy::random::{
+    rand::rand::{Rng, seq::IteratorRandom as _},
+    rng,
+};
 
 pub struct InteractionPlanContext {
     curr_id: TransactionId,

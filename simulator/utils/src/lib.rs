@@ -7,7 +7,7 @@ use std::{
     sync::{LazyLock, RwLock, atomic::AtomicU64},
 };
 
-use dst_demo_async::{futures::FutureExt as _, util::CancellationToken};
+use switchy::unsync::{futures::FutureExt as _, util::CancellationToken};
 
 static WORKER_THREAD_ID_COUNTER: LazyLock<AtomicU64> = LazyLock::new(|| AtomicU64::new(1));
 
@@ -87,7 +87,7 @@ where
     let global_token = GLOBAL_SIMULATOR_CANCELLATION_TOKEN.read().unwrap().clone();
     let local_token = SIMULATOR_CANCELLATION_TOKEN.with_borrow(|x| x.read().unwrap().clone());
 
-    dst_demo_async::select! {
+    switchy::unsync::select! {
         resp = fut.fuse() => Some(resp),
         () = global_token.cancelled().fuse() => None,
         () = local_token.cancelled().fuse() => None,

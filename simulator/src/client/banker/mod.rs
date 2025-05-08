@@ -1,15 +1,17 @@
 use std::{cell::RefCell, str::FromStr, sync::atomic::AtomicU32};
 
-use dst_demo_async::{futures::FutureExt as _, io::AsyncWriteExt as _};
 use dst_demo_server::{
     ServerAction,
     bank::{Transaction, TransactionId},
 };
-use dst_demo_simulator_harness::{
-    Sim, plan::InteractionPlan as _, tcp::TcpStream, time::simulator::step_multiplier,
-};
+use dst_demo_simulator_harness::{Sim, plan::InteractionPlan as _};
 use plan::{BankerInteractionPlan, Interaction};
 use rust_decimal::Decimal;
+use switchy::{
+    tcp::TcpStream,
+    time::simulator::step_multiplier,
+    unsync::{futures::FutureExt as _, io::AsyncWriteExt as _},
+};
 
 mod plan;
 
@@ -51,12 +53,12 @@ pub fn start(sim: &mut impl Sim) {
                         0
                     } + step_multiplier() * 1000;
 
-                dst_demo_async::select! {
+                switchy::unsync::select! {
                     resp = perform_interaction(&server_addr, &interaction, &plan).fuse() => {
                         resp?;
-                        dst_demo_async::time::sleep(std::time::Duration::from_secs(step_multiplier() * 60)).await;
+                        switchy::unsync::time::sleep(std::time::Duration::from_secs(step_multiplier() * 60)).await;
                     }
-                    () = dst_demo_async::time::sleep(std::time::Duration::from_millis(interaction_timeout)) => {
+                    () = switchy::unsync::time::sleep(std::time::Duration::from_millis(interaction_timeout)) => {
                         return Err(Box::new(std::io::Error::new(
                             std::io::ErrorKind::TimedOut,
                             format!(
@@ -120,7 +122,7 @@ async fn perform_interaction(
     if let Interaction::Sleep(duration) = interaction {
         let duration = *duration;
         log::debug!("perform_interaction: sleeping for duration={duration:?}");
-        dst_demo_async::time::sleep(duration).await;
+        switchy::unsync::time::sleep(duration).await;
         return Ok(());
     }
 
@@ -130,7 +132,7 @@ async fn perform_interaction(
             Ok(stream) => stream,
             Err(e) => {
                 log::debug!("Failed to connect to server: {e:?}");
-                dst_demo_async::time::sleep(std::time::Duration::from_millis(step_multiplier()))
+                switchy::unsync::time::sleep(std::time::Duration::from_millis(step_multiplier()))
                     .await;
                 continue;
             }

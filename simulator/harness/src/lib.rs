@@ -16,29 +16,22 @@ use std::{
 use client::{Client, ClientResult};
 use color_backtrace::{BacktracePrinter, termcolor::Buffer};
 use config::run_info;
-use dst_demo_async::thread_id;
-use dst_demo_random::{rand::rand::seq::SliceRandom as _, rng};
 use dst_demo_simulator_utils::{
     cancel_global_simulation, cancel_simulation, is_global_simulator_cancelled,
     is_simulator_cancelled, reset_simulator_cancellation_token, worker_thread_id,
 };
-use dst_demo_time::simulator::{current_step, next_step, reset_step};
 use formatting::TimeFormat as _;
+use host::{Host, HostResult};
+use switchy::{
+    random::{rand::rand::seq::SliceRandom as _, rng},
+    time::simulator::{current_step, next_step, reset_step},
+    unsync::thread_id,
+};
 
 pub use config::{SimConfig, SimProperties, SimResult, SimRunProperties};
 pub use dst_demo_simulator_utils as utils;
 
-#[cfg(feature = "async")]
-pub use dst_demo_async as unsync;
-#[cfg(feature = "fs")]
-pub use dst_demo_fs as fs;
-#[cfg(feature = "random")]
-pub use dst_demo_random as random;
-#[cfg(feature = "tcp")]
-pub use dst_demo_tcp as tcp;
-#[cfg(feature = "time")]
-pub use dst_demo_time as time;
-use host::{Host, HostResult};
+pub use switchy;
 
 mod client;
 mod config;
@@ -351,17 +344,17 @@ impl<'a, B: SimBootstrap> Simulation<'a, B> {
     #[allow(clippy::too_many_lines)]
     fn run(&self, run_number: u64, thread_id: Option<u64>) -> SimResult {
         if run_number > 1 {
-            dst_demo_random::simulator::reset_seed();
+            switchy::random::simulator::reset_seed();
         }
 
-        dst_demo_random::simulator::reset_rng();
-        dst_demo_tcp::simulator::reset();
+        switchy::random::simulator::reset_rng();
+        switchy::tcp::simulator::reset();
         #[cfg(feature = "fs")]
-        dst_demo_fs::simulator::reset_fs();
+        switchy::fs::simulator::reset_fs();
         #[cfg(feature = "time")]
-        dst_demo_time::simulator::reset_epoch_offset();
+        switchy::time::simulator::reset_epoch_offset();
         #[cfg(feature = "time")]
-        dst_demo_time::simulator::reset_step_multiplier();
+        switchy::time::simulator::reset_step_multiplier();
         reset_simulator_cancellation_token();
         reset_step();
 
@@ -595,11 +588,11 @@ impl ManagedSim {
         let Some(start) = self.start else {
             return Duration::ZERO;
         };
-        dst_demo_time::now().duration_since(start).unwrap()
+        switchy::time::now().duration_since(start).unwrap()
     }
 
     pub fn start(&mut self) {
-        self.start = Some(dst_demo_time::now());
+        self.start = Some(switchy::time::now());
 
         for host in self.hosts.iter_mut().filter(|x| !x.has_started()) {
             host.start();

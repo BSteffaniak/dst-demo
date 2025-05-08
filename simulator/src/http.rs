@@ -1,7 +1,9 @@
 use std::collections::BTreeMap;
 
-use dst_demo_async::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use dst_demo_simulator_harness::tcp::TcpStream;
+use switchy::{
+    tcp::TcpStream,
+    unsync::io::{AsyncReadExt as _, AsyncWriteExt as _},
+};
 
 pub struct HttpResponse {
     pub status_code: u16,

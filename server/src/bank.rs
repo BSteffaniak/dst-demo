@@ -8,14 +8,16 @@ use std::{
 };
 
 use async_trait::async_trait;
-use dst_demo_async::{
-    inject_yields,
-    sync::{Mutex, RwLock, RwLockReadGuard},
-};
-use dst_demo_fs::sync::{File, OpenOptions};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde::{Deserialize, Serialize};
+use switchy::{
+    fs::sync::{File, OpenOptions},
+    unsync::{
+        inject_yields,
+        sync::{Mutex, RwLock, RwLockReadGuard},
+    },
+};
 
 pub type TransactionId = i32;
 pub type BankAccountBalance = Decimal;
@@ -36,7 +38,7 @@ pub trait Bank: Send + Sync {
     /// * If the `Bank` implementation fails to list the `Transaction`s
     async fn list_transactions(
         &self,
-    ) -> Result<dst_demo_async::sync::RwLockReadGuard<Vec<Transaction>>, Error>;
+    ) -> Result<switchy::unsync::sync::RwLockReadGuard<Vec<Transaction>>, Error>;
 
     /// # Errors
     ///
@@ -181,7 +183,7 @@ impl Bank for LocalBank {
         let mut binding = self.current_id.write().await;
         let id = *binding;
         *binding += 1;
-        let now = dst_demo_time::now();
+        let now = switchy::time::now();
         let seconds_since_epoch = now
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()

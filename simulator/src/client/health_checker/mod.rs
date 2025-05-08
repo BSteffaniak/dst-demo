@@ -1,8 +1,10 @@
-use dst_demo_async::{futures::FutureExt, io::AsyncWriteExt};
-use dst_demo_simulator_harness::{
-    Sim, plan::InteractionPlan as _, tcp::TcpStream, time::simulator::step_multiplier,
-};
+use dst_demo_simulator_harness::{Sim, plan::InteractionPlan as _};
 use plan::{HealthCheckInteractionPlan, Interaction};
+use switchy::{
+    tcp::TcpStream,
+    time::simulator::step_multiplier,
+    unsync::{futures::FutureExt, io::AsyncWriteExt},
+};
 
 pub mod plan;
 
@@ -15,8 +17,10 @@ pub fn start(sim: &mut impl Sim) {
         loop {
             while let Some(interaction) = plan.step() {
                 perform_interaction(interaction).await?;
-                dst_demo_async::time::sleep(std::time::Duration::from_secs(step_multiplier() * 60))
-                    .await;
+                switchy::unsync::time::sleep(std::time::Duration::from_secs(
+                    step_multiplier() * 60,
+                ))
+                .await;
             }
 
             plan.gen_interactions(1000);
@@ -32,7 +36,7 @@ async fn perform_interaction(
     match interaction {
         Interaction::Sleep(duration) => {
             log::debug!("perform_interaction: sleeping for duration={duration:?}");
-            dst_demo_async::time::sleep(*duration).await;
+            switchy::unsync::time::sleep(*duration).await;
         }
         Interaction::HealthCheck(host) => {
             log::debug!("perform_interaction: checking health for host={host}");
@@ -46,11 +50,11 @@ async fn perform_interaction(
 async fn health_check(host: &str) -> Result<(), Box<dyn std::error::Error + Send>> {
     let timeout = 10 * step_multiplier();
 
-    dst_demo_async::select! {
+    switchy::unsync::select! {
         resp = assert_health(host).fuse() => {
             resp?;
         }
-        () = dst_demo_async::time::sleep(std::time::Duration::from_secs(timeout)) => {
+        () = switchy::unsync::time::sleep(std::time::Duration::from_secs(timeout)) => {
             return Err(Box::new(std::io::Error::new(
                 std::io::ErrorKind::TimedOut,
                 format!("Failed to get healthy response within {timeout} seconds")
@@ -68,7 +72,7 @@ async fn assert_health(host: &str) -> Result<(), Box<dyn std::error::Error + Sen
             Ok(stream) => stream,
             Err(e) => {
                 log::debug!("[Health Client] Failed to connect to server: {e:?}");
-                dst_demo_async::time::sleep(std::time::Duration::from_millis(step_multiplier()))
+                switchy::unsync::time::sleep(std::time::Duration::from_millis(step_multiplier()))
                     .await;
                 continue;
             }

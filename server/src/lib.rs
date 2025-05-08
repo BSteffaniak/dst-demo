@@ -9,15 +9,17 @@ use std::{
 };
 
 use bank::{Bank, LocalBank, TransactionId};
-use dst_demo_async::{
-    inject_yields,
-    io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
-    task,
-    util::CancellationToken,
-};
-use dst_demo_tcp::{GenericTcpListener, GenericTcpStream, TcpListener};
 use rust_decimal::Decimal;
 use strum::{AsRefStr, EnumString, ParseError};
+use switchy::{
+    tcp::{GenericTcpListener, GenericTcpStream, TcpListener},
+    unsync::{
+        inject_yields,
+        io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt},
+        task,
+        util::CancellationToken,
+    },
+};
 
 pub mod bank;
 
@@ -27,7 +29,7 @@ pub static SERVER_CANCELLATION_TOKEN: LazyLock<CancellationToken> =
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
-    Async(#[from] dst_demo_async::Error),
+    Async(#[from] switchy::unsync::Error),
     #[error(transparent)]
     IO(#[from] std::io::Error),
     #[error(transparent)]
@@ -35,7 +37,7 @@ pub enum Error {
     #[error(transparent)]
     Parse(#[from] ParseError),
     #[error(transparent)]
-    Tcp(#[from] dst_demo_tcp::Error),
+    Tcp(#[from] switchy::tcp::Error),
     #[error(transparent)]
     Decimal(#[from] rust_decimal::Error),
     #[error(transparent)]

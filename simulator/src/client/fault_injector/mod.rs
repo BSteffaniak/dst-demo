@@ -29,7 +29,7 @@ async fn perform_interaction(
     match interaction {
         Interaction::Sleep(duration) => {
             log::debug!("perform_interaction: sleeping for duration={duration:?}");
-            dst_demo_async::time::sleep(*duration).await;
+            switchy::unsync::time::sleep(*duration).await;
         }
         Interaction::Bounce(host) => {
             log::debug!("perform_interaction: queueing bouncing '{host}'");

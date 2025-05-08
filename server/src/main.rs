@@ -30,7 +30,7 @@ fn main() -> Result<(), Error> {
                 log::Level::Trace => Color::Magenta,
             });
 
-            let thread_id = dst_demo_async::thread_id();
+            let thread_id = switchy::unsync::thread_id();
             let ts = buf.timestamp_millis();
             let level_prefix_len = "[]".len() + level.to_string().len();
             let thread_prefix_len = "[Thread ]".len() + thread_id.to_string().len();
@@ -79,7 +79,7 @@ fn main() -> Result<(), Error> {
     let addr = std::env::var("ADDR").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
 
-    let runtime = dst_demo_async::runtime::Builder::new()
+    let runtime = switchy::unsync::runtime::Builder::new()
         .max_blocking_threads(10)
         .build()?;
 

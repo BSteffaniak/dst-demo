@@ -1,9 +1,11 @@
 use std::{pin::Pin, sync::Arc};
 
-use dst_demo_async::{runtime, task::JoinHandle};
 use dst_demo_simulator_utils::run_until_simulation_cancelled;
-use dst_demo_tcp::simulator::with_host as with_tcp_host;
 use scoped_tls::scoped_thread_local;
+use switchy::{
+    tcp::simulator::with_host as with_tcp_host,
+    unsync::{runtime, task::JoinHandle},
+};
 
 use crate::Actor;
 

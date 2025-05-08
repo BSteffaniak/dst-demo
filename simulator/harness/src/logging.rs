@@ -62,7 +62,7 @@ pub fn init_pretty_env_logger() -> std::io::Result<()> {
                 log::Level::Trace => Color::Magenta,
             });
 
-            let thread_id = dst_demo_async::thread_id();
+            let thread_id = switchy::unsync::thread_id();
             let ts = buf.timestamp_millis();
             let level_prefix_len = "[]".len() + level.to_string().len();
             let thread_prefix_len = "[Thread ]".len() + thread_id.to_string().len();
